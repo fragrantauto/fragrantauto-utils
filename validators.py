@@ -1,40 +1,30 @@
-from typing import Any, Optional
 import re
+from functools import lru_cache
+
+ETH_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+BTC_ADDRESS_RE = re.compile(r"^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,39}$")
 
 
-class CryptoValidator:
-    @staticmethod
-    def is_valid_address(address: str, chain_type: str = 'evm') -> bool:
-        if chain_type == 'evm':
-            return bool(re.match(r'^0x[a-fA-F0-9]{40}$', address))
-        if chain_type == 'solana':
-            return bool(re.match(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$', address))
+@lru_cache(maxsize=2048)
+def validate_eth_address(address: str) -> bool:
+    if not isinstance(address, str):
         return False
-
-    @staticmethod
-    def sanitize_amount(amount: Any) -> float:
-        try:
-            value = float(amount)
-            return value if value >= 0 else 0.0
-        except (ValueError, TypeError):
-            return 0.0
-
-    @staticmethod
-    def validate_asset_pair(pair: str) -> bool:
-        pattern = r'^[A-Z0-9]{2,10}/[A-Z0-9]{2,10}$'
-        return bool(re.match(pattern, pair))
+    return bool(ETH_ADDRESS_RE.match(address))
 
 
-def validate_transaction_payload(data: dict) -> Optional[dict]:
-    required_fields = {'address', 'amount', 'symbol'}
-    if not all(field in data for field in required_fields):
-        return None
-    
-    if not CryptoValidator.is_valid_address(data['address']):
-        return None
-        
-    data['amount'] = CryptoValidator.sanitize_amount(data['amount'])
-    if data['amount'] <= 0:
-        return None
-        
-    return data
+@lru_cache(maxsize=2048)
+def validate_btc_address(address: str) -> bool:
+    if not isinstance(address, str):
+        return False
+    return bool(BTC_ADDRESS_RE.match(address))
+
+
+def fast_batch_validate(addresses: list[str], coin_type: str) -> list[bool]:
+    validator_map = {
+        "eth": validate_eth_address,
+        "btc": validate_btc_address,
+    }
+    validator = validator_map.get(coin_type.lower())
+    if not validator:
+        raise ValueError(f"Unsupported currency: {coin_type}")
+    return [validator(addr) for addr in addresses]
