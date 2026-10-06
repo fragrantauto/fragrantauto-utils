@@ -5,29 +5,28 @@ from pathlib import Path
 LOG_DIR = Path("logs")
 LOG_FILE = LOG_DIR / "fragrantauto.log"
 
-
 def setup_logger(name: str = "fragrantauto") -> logging.Logger:
     LOG_DIR.mkdir(exist_ok=True)
+    
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
     
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     
-    handler = RotatingFileHandler(
+    file_handler = RotatingFileHandler(
         LOG_FILE, 
-        maxBytes=5_000_000, 
+        maxBytes=10 * 1024 * 1024, 
         backupCount=5
     )
-    handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
     
-    console = logging.StreamHandler()
-    console.setFormatter(formatter)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
     
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-    logger.addHandler(handler)
-    logger.addHandler(console)
-    
+    if not logger.handlers:
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+        
     return logger
-
-logger = setup_logger()
