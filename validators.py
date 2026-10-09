@@ -3,16 +3,26 @@ from typing import Any, Dict
 class ValidationError(Exception):
     pass
 
-def validate_trade_params(data: Dict[str, Any]) -> None:
-    required_keys = {'symbol', 'amount', 'price'}
-    if not all(key in data for key in required_keys):
-        raise ValidationError(f"Missing required keys: {required_keys - data.keys()}")
+def validate_order_payload(data: Any) -> Dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValidationError("payload must be a dictionary")
     
-    if data['amount'] <= 0 or data['price'] <= 0:
-        raise ValidationError("Amount and price must be positive")
+    required_fields = {"symbol": str, "side": str, "amount": (int, float), "price": (int, float)}
+    
+    for field, field_type in required_fields.items():
+        if field not in data:
+            raise ValidationError(f"missing required field: {field}")
+        if not isinstance(data[field], field_type):
+            raise ValidationError(f"invalid type for {field}")
+            
+    if data["side"] not in ("buy", "sell"):
+        raise ValidationError("side must be buy or sell")
+    if data["amount"] <= 0 or data["price"] <= 0:
+        raise ValidationError("amount and price must be positive")
+        
+    return data
 
-def validate_config(config: Dict[str, Any]) -> None:
-    if not isinstance(config.get('api_key'), str) or len(config.get('api_key', '')) < 32:
-        raise ValidationError("Invalid or missing API key")
-    if not isinstance(config.get('leverage'), (int, float)) or not (1 <= config['leverage'] <= 100):
-        raise ValidationError("Leverage must be between 1 and 100")
+def validate_api_key(key: str) -> bool:
+    if not isinstance(key, str) or len(key) != 32:
+        return False
+    return key.isalnum()
