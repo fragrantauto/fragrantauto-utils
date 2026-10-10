@@ -1,40 +1,32 @@
-import os
 import logging
-from logging.handlers import RotatingFileHandler
+import sys
+from typing import Optional
 
-def setup_logger(
-    name: str = "fragrantauto",
-    log_file: str = "logs/crypto_bot.log",
-    max_bytes: int = 5 * 1024 * 1024,
-    backup_count: int = 5,
-    level: int = logging.INFO
-) -> logging.Logger:
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
+class CryptoLogger:
+    """Standardized logging for crypto trading utilities."""
 
-    if logger.hasHandlers():
-        logger.handlers.clear()
+    def __init__(self, name: str, level: int = logging.INFO) -> None:
+        self.logger: logging.Logger = logging.getLogger(name)
+        self.logger.setLevel(level)
+        handler: logging.StreamHandler = logging.StreamHandler(sys.stdout)
+        formatter: logging.Formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
 
-    formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S"
-    )
+    def info(self, message: str) -> None:
+        """Log informational messages."""
+        self.logger.info(message)
 
-    log_dir = os.path.dirname(log_file)
-    if log_dir:
-        os.makedirs(log_dir, exist_ok=True)
+    def error(self, message: str, exc_info: Optional[Exception] = None) -> None:
+        """Log error messages with optional exception details."""
+        self.logger.error(message, exc_info=exc_info)
 
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=max_bytes,
-        backupCount=backup_count,
-        encoding="utf-8"
-    )
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    def warning(self, message: str) -> None:
+        """Log warning level messages."""
+        self.logger.warning(message)
 
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-    return logger
+def get_logger(name: str) -> "CryptoLogger":
+    """Factory function for creating logger instances."""
+    return CryptoLogger(name)
