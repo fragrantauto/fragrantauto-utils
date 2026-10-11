@@ -1,24 +1,22 @@
-from typing import Final
-from decimal import Decimal
+from enum import Enum
 
-CACHE_TTL: Final[int] = 300
-MAX_RETRIES: Final[int] = 3
-PRECISION: Final[int] = 8
+class CryptoErrorCodes(Enum):
+    INVALID_ASSET = 1001
+    INSUFFICIENT_LIQUIDITY = 1002
+    NETWORK_TIMEOUT = 1003
+    RATE_LIMIT_EXCEEDED = 1004
+    INVALID_SIGNATURE = 1005
+    EXCHANGE_MAINTENANCE = 1006
 
-MIN_TRADE_SIZE: Final[Decimal] = Decimal('0.0001')
-FEE_RATE: Final[Decimal] = Decimal('0.001')
+ERROR_MESSAGES = {
+    CryptoErrorCodes.INVALID_ASSET: "the specified asset is not supported",
+    CryptoErrorCodes.INSUFFICIENT_LIQUIDITY: "insufficient liquidity for trade execution",
+    CryptoErrorCodes.NETWORK_TIMEOUT: "network request timed out",
+    CryptoErrorCodes.RATE_LIMIT_EXCEEDED: "rate limit quota exceeded",
+    CryptoErrorCodes.INVALID_SIGNATURE: "provided cryptographic signature is invalid",
+    CryptoErrorCodes.EXCHANGE_MAINTENANCE: "exchange is currently under maintenance"
+}
 
-RPC_ENDPOINTS: Final[tuple[str, ...]] = (
-    'https://mainnet.infura.io/v3/key',
-    'https://bsc-dataseed.binance.org/',
-    'https://api.avax.network/ext/bc/C/rpc',
-)
-
-EXCLUDED_ASSETS: Final[frozenset[str]] = frozenset([
-    'USDT', 
-    'USDC', 
-    'DAI', 
-    'BUSD'
-])
-
-OP_TIMEOUT: Final[float] = 2.5
+MAX_RETRIES = 3
+TIMEOUT_SECONDS = 30
+SUPPORTED_NETWORKS = {"ethereum", "bsc", "polygon", "solana"}
