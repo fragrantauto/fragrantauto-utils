@@ -1,39 +1,31 @@
-import re
-from typing import Dict, List, Any
+import logging
+from typing import Any, Dict
+from decimal import Decimal, InvalidOperation
 
-class ValidationError(Exception):
-    pass
+logger = logging.getLogger(__name__)
 
-def validate_tx_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    address_pattern = re.compile(r"^0x[a-fA-F0-9]{40}$")
-    tx_id = payload.get("tx_id")
-    if not isinstance(tx_id, str) or not tx_id.strip():
-        raise ValidationError("Invalid or missing transaction ID")
-
-    to_address = payload.get("to_address")
-    if not isinstance(to_address, str) or not address_pattern.match(to_address):
-        raise ValidationError("Invalid Ethereum address")
-
-    amount = payload.get("amount")
+def validate_trade_data(data: Dict[str, Any]) -> bool:
+    required_keys = {'symbol', 'amount', 'price'}
+    if not all(key in data for key in required_keys):
+        return False
     try:
-        amount_val = float(amount)
-        if amount_val <= 0:
-            raise ValueError
-    except (TypeError, ValueError):
-        raise ValidationError("Amount must be a positive number")
+        amount = Decimal(str(data['amount']))
+        price = Decimal(str(data['price']))
+        return amount > 0 and price > 0
+    except (InvalidOperation, ValueError, TypeError):
+        return False
 
-    return {
-        "tx_id": tx_id.strip(),
-        "to_address": to_address.lower(),
-        "amount": amount_val,
-    }
-
-def process_transaction_queue(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    processed = []
-    for payload in payloads:
+def process_trade_stream(stream: Any) -> None:
+    for trade in stream:
+        if not validate_trade_data(trade):
+            logger.warning(f"invalid trade packet discarded: {trade}")
+            continue
+        
         try:
-            validated = validate_tx_payload(payload)
-            processed.append(validated)
-        except ValidationError:
-            pass
-    return processed
+            execute_trade(trade)
+        except Exception as e:
+            logger.error(f"execution failure: {e}")
+
+def execute_trade(trade: Dict[str, Any]) -> None:
+    # internal execution logic
+    pass
