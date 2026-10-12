@@ -1,20 +1,44 @@
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, List, Optional
+import asyncio
+import functools
+import logging
+import random
+from typing import Any, Callable, Tuple, Type, Union
 
-def format_price(amount: float, precision: int = 8) -> str:
-    return format(Decimal(str(amount)).quantize(Decimal(f'1.{("0" * precision)}'), rounding=ROUND_HALF_UP), 'f')
+logger = logging.getLogger(__name__)
 
-def calculate_order_value(price: float, quantity: float) -> Decimal:
-    return Decimal(str(price)) * Decimal(str(quantity))
 
-def sanitize_orderbook(data: Dict[str, List[List[str]]]) -> Dict[str, List[List[float]]]:
-    return {
-        side: [[float(p), float(q)] for p, q in orders]
-        for side, orders in data.items()
-    }
+def retry_async(
+    retries: int = 3,
+    delay: float = 1.0,
+    backoff: float = 2.0,
+    jitter: bool = True,
+    exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = (Exception,),
+) -> Callable:
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            current_delay = delay
+            for attempt in range(1, retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except exceptions as err:
+                    if attempt == retries:
+                        logger.error(
+                            f"Call to {func.__name__} failed after {retries} attempts: {err}"
+                        )
+                        raise
 
-def validate_pair(pair: str) -> bool:
-    if not isinstance(pair, str) or '_' not in pair:
-        return False
-    base, quote = pair.split('_')
-    return base.isalnum() and quote.isalnum()
+                    sleep_time = current_delay
+                    if jitter:
+                        sleep_time += random.uniform(0, 0.1 * current_delay)
+
+                    logger.warning(
+                        f"Attempt {attempt}/{retries} for {func.__name__} failed: {err}. "
+                        f"Retrying in {sleep_time:.2f}s..."
+                    )
+                    await asyncio.sleep(sleep_time)
+                    current_delay *= backoff
+
+        return wrapper
+
+    return decorator
