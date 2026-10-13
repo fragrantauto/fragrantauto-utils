@@ -1,31 +1,25 @@
 import logging
-from typing import Any, Dict
-from decimal import Decimal, InvalidOperation
+from typing import Dict, Any
+from .validators import validate_transaction
 
 logger = logging.getLogger(__name__)
 
-def validate_trade_data(data: Dict[str, Any]) -> bool:
-    required_keys = {'symbol', 'amount', 'price'}
-    if not all(key in data for key in required_keys):
-        return False
-    try:
-        amount = Decimal(str(data['amount']))
-        price = Decimal(str(data['price']))
-        return amount > 0 and price > 0
-    except (InvalidOperation, ValueError, TypeError):
-        return False
+def process_transactions(data: list) -> None:
+    if not isinstance(data, list):
+        logger.error("Invalid input format: expected list")
+        return
 
-def process_trade_stream(stream: Any) -> None:
-    for trade in stream:
-        if not validate_trade_data(trade):
-            logger.warning(f"invalid trade packet discarded: {trade}")
-            continue
-        
+    for tx in data:
         try:
-            execute_trade(trade)
+            if not validate_transaction(tx):
+                logger.warning(f"Validation failed for tx: {tx.get('id')}")
+                continue
+            
+            execute_trade(tx)
         except Exception as e:
-            logger.error(f"execution failure: {e}")
+            logger.error(f"Unexpected error during processing: {e}")
 
-def execute_trade(trade: Dict[str, Any]) -> None:
-    # internal execution logic
-    pass
+def execute_trade(tx: Dict[str, Any]) -> None:
+    symbol = tx.get("symbol")
+    amount = tx.get("amount")
+    logger.info(f"Executing {amount} of {symbol}")
