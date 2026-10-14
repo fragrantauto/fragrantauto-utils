@@ -1,27 +1,27 @@
+import time
 import functools
-from typing import Any, Callable, Dict
+import logging
+from typing import Callable, Any, Type
 
-_CACHE: Dict[tuple, bool] = {}
+logger = logging.getLogger(__name__)
 
-def memoize_validation(func: Callable) -> Callable:
-    @functools.wraps(func)
-    def wrapper(*args: Any) -> bool:
-        if args not in _CACHE:
-            _CACHE[args] = func(*args)
-        return _CACHE[args]
-    return wrapper
+def retry_on_failure(exceptions: tuple[Type[Exception], ...], max_retries: int = 3, delay: float = 1.0):
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+                    logger.warning(f"attempt {attempt + 1} failed: {e}. retrying...")
+                    time.sleep(delay * (2 ** attempt))
+            raise last_exception
+        return wrapper
+    return decorator
 
-@memoize_validation
-def validate_address_checksum(address: str) -> bool:
-    if not isinstance(address, str) or len(address) != 42:
+def validate_network_response(response: dict) -> bool:
+    if not response or "status" not in response:
         return False
-    return address.startswith('0x') and address[2:].isalnum()
-
-class AddressValidator:
-    @staticmethod
-    def is_valid(address: str) -> bool:
-        return validate_address_checksum(address)
-
-    @staticmethod
-    def clear_cache() -> None:
-        _CACHE.clear()
+    return response.get("status") == "success"
