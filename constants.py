@@ -1,22 +1,33 @@
-from enum import Enum
+from typing import Final
 
-class CryptoErrorCodes(Enum):
-    INVALID_ASSET = 1001
-    INSUFFICIENT_LIQUIDITY = 1002
-    NETWORK_TIMEOUT = 1003
-    RATE_LIMIT_EXCEEDED = 1004
-    INVALID_SIGNATURE = 1005
-    EXCHANGE_MAINTENANCE = 1006
+# Network identifiers
+MAINNET_ID: Final[str] = "mainnet"
+TESTNET_ID: Final[str] = "testnet"
 
-ERROR_MESSAGES = {
-    CryptoErrorCodes.INVALID_ASSET: "the specified asset is not supported",
-    CryptoErrorCodes.INSUFFICIENT_LIQUIDITY: "insufficient liquidity for trade execution",
-    CryptoErrorCodes.NETWORK_TIMEOUT: "network request timed out",
-    CryptoErrorCodes.RATE_LIMIT_EXCEEDED: "rate limit quota exceeded",
-    CryptoErrorCodes.INVALID_SIGNATURE: "provided cryptographic signature is invalid",
-    CryptoErrorCodes.EXCHANGE_MAINTENANCE: "exchange is currently under maintenance"
-}
+# Exchange rate precision
+PRICE_PRECISION: Final[int] = 8
+QUANTITY_PRECISION: Final[int] = 6
 
-MAX_RETRIES = 3
-TIMEOUT_SECONDS = 30
-SUPPORTED_NETWORKS = {"ethereum", "bsc", "polygon", "solana"}
+# API limits
+DEFAULT_TIMEOUT: Final[int] = 30
+MAX_RETRIES: Final[int] = 3
+
+# Environment keys
+API_KEY_ENV: Final[str] = "FA_API_KEY"
+API_SECRET_ENV: Final[str] = "FA_API_SECRET"
+
+# Decimal representations
+ZERO_DECIMAL: Final[str] = "0.00000000"
+
+# Fee configurations
+MAKER_FEE: Final[float] = 0.001
+TAKER_FEE: Final[float] = 0.002
+
+# Supported order types
+ORDER_TYPES: Final[set] = {"market", "limit", "stop_loss"}
+
+# Supported trading pairs
+VALID_PAIRS: Final[list] = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+
+# Logging configuration
+LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
