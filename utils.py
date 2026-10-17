@@ -1,19 +1,36 @@
-import decimal
-from typing import Union
+import hashlib
+import hmac
+import time
+from typing import Any, Dict
 
-def to_decimal(amount: Union[str, float, int]) -> decimal.Decimal:
-    return decimal.Decimal(str(amount))
 
-def format_crypto(amount: decimal.Decimal, precision: int = 8) -> str:
-    return format(amount.normalize(), f'.{precision}f')
+def satoshi_to_btc(satoshi: int) -> float:
+    return satoshi / 100_000_000.0
 
-def calculate_fee(amount: decimal.Decimal, rate: float) -> decimal.Decimal:
-    return (amount * decimal.Decimal(str(rate))).quantize(decimal.Decimal('0.00000001'))
 
-def truncate_address(address: str, length: int = 6) -> str:
-    if len(address) <= length * 2:
-        return address
-    return f"{address[:length]}...{address[-length:]}"
+def btc_to_satoshi(btc: float) -> int:
+    return int(btc * 100_000_000)
 
-def is_valid_ticker(ticker: str) -> bool:
-    return bool(ticker and ticker.isalnum() and 2 <= len(ticker) <= 8)
+
+def wei_to_eth(wei: int) -> float:
+    return wei / 10**18
+
+
+def eth_to_wei(eth: float) -> int:
+    return int(eth * 10**18)
+
+
+def generate_signature(secret: str, message: str) -> str:
+    return hmac.new(
+        secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+
+def prepare_signed_payload(params: Dict[str, Any], secret: str) -> Dict[str, Any]:
+    payload = params.copy()
+    payload["timestamp"] = int(time.time() * 1000)
+    query_string = "&".join(f"{k}={v}" for k, v in sorted(payload.items()))
+    payload["signature"] = generate_signature(secret, query_string)
+    return payload
