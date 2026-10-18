@@ -1,52 +1,49 @@
 # fragrantauto-utils
 
-`fragrantauto-utils` is a high-performance Python toolkit designed for automated cryptocurrency trading strategy development and portfolio management. It provides streamlined interfaces for executing complex order types and tracking real-time market data across multiple decentralized exchanges.
+`fragrantauto-utils` is a high-performance Python toolkit designed for automated crypto trading and decentralized protocol interaction. It provides streamlined abstractions for managing wallet state, executing on-chain swaps, and monitoring liquidity pools.
 
-### Features
+## Features
 
-*   **Async Order Execution:** Non-blocking API wrappers for rapid order routing and management, minimizing slippage during high-volatility events.
-*   **Arbitrage Monitoring:** Native utilities to track spread differentials between liquidity pools with sub-millisecond latency.
-*   **Data Normalization:** Robust serialization methods to convert diverse exchange websocket streams into a unified internal schema.
-*   **Risk Guardrails:** Pre-built validation logic to enforce circuit breakers, position sizing constraints, and automated emergency liquidations.
+*   **Async Web3 Wrappers:** Optimized `web3.py` boilerplate to handle high-frequency transaction signing and gas estimation without blocking the event loop.
+*   **Decentralized Exchange (DEX) Router:** Native support for Uniswap V3 and PancakeSwap routing, including automatic slippage calculation and path optimization.
+*   **On-Chain Monitoring:** Lightweight listeners for tracking event logs (Transfer, Swap, Mint) across EVM-compatible networks with minimal latency.
+*   **Portfolio Reconciliation:** Automated balance tracking and token decimal normalization across multiple chains using a single, unified interface.
 
-### Installation
+## Installation
 
-Requires Python 3.9 or higher. Install the package via pip:
+Ensure you have Python 3.10+ installed. Install the package directly via pip:
 
 ```bash
 pip install fragrantauto-utils
 ```
 
-For development mode with testing dependencies:
+For local development or to utilize the latest features:
 
 ```bash
-git clone https://github.com/developer/fragrantauto-utils.git
+git clone https://github.com/Developer/fragrantauto-utils.git
 cd fragrantauto-utils
-pip install -e .[dev]
+pip install -r requirements.txt
+python setup.py install
 ```
 
-### Usage
+## Basic Usage
 
-Initialize the client and execute a basic market buy order using the utility wrapper:
+The following example demonstrates how to initialize a wallet provider and query a token balance on the Ethereum mainnet.
 
 ```python
-from fragrantauto import Client
+from fragrantauto.provider import Web3Provider
+from fragrantauto.utils import format_balance
 
-# Initialize with API credentials
-client = Client(api_key="your_key", secret="your_secret")
+# Initialize the provider
+w3 = Web3Provider(rpc_url="https://eth.llamarpc.com")
 
-# Execute a market buy order for 0.5 ETH/USDT
-order = client.trade.market_buy(
-    symbol="ETHUSDT",
-    quantity=0.5,
-    test_mode=True
-)
-
-print(f"Order executed successfully: {order['order_id']}")
+# Get wallet balance for a target contract
+balance = w3.get_balance("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
+print(f"Current Balance: {format_balance(balance)} ETH")
 ```
 
-### License
+## License
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-*Disclaimer: This tool is for educational purposes. Use at your own risk. The author is not responsible for financial losses incurred through automated trading.*
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
