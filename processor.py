@@ -1,32 +1,26 @@
-import time
-import functools
 import logging
-from typing import Callable, Any
+from typing import Any, Dict
 
-logger = logging.getLogger(__name__)
+def validate_payload(data: Dict[str, Any]) -> bool:
+    required = {'address', 'amount', 'asset'}
+    if not isinstance(data, dict):
+        return False
+    return all(key in data for key in required) and data['amount'] > 0
 
-def retry_network_operation(max_attempts: int = 3, delay: float = 1.0):
-    def decorator(func: Callable):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            last_exception = None
-            for attempt in range(max_attempts):
-                try:
-                    return func(*args, **kwargs)
-                except (ConnectionError, TimeoutError) as e:
-                    last_exception = e
-                    logger.warning(f"attempt {attempt + 1} failed: {e}")
-                    time.sleep(delay * (2 ** attempt))
-            raise last_exception
-        return wrapper
-    return decorator
+def process_transactions(queue: list) -> None:
+    logger = logging.getLogger('fragrantauto-utils')
+    for entry in queue:
+        try:
+            if not validate_payload(entry):
+                logger.warning(f"Invalid transaction format: {entry}")
+                continue
+            
+            # Execution logic follows
+            execute_trade(entry)
+            
+        except Exception as e:
+            logger.error(f"Processing error: {str(e)}")
 
-class CryptoProcessor:
-    def __init__(self, endpoint: str):
-        self.endpoint = endpoint
-
-    @retry_network_operation(max_attempts=3, delay=2.0)
-    def fetch_market_data(self, pair: str):
-        logger.info(f"fetching {pair} from {self.endpoint}")
-        # network call logic would reside here
-        return {"pair": pair, "price": 0.0}
+def execute_trade(data: Dict[str, Any]) -> None:
+    # Placeholder for exchange interaction
+    pass
