@@ -5,22 +5,18 @@ from typing import Callable, Any
 
 logger = logging.getLogger(__name__)
 
-def retry(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
+def retry(max_retries: int = 3, delay: float = 1.0, exceptions: tuple = (Exception,)):
     def decorator(func: Callable):
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
-            attempts = 0
-            current_delay = delay
-            while attempts < max_attempts:
+            last_exception = None
+            for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
-                except Exception as e:
-                    attempts += 1
-                    if attempts == max_attempts:
-                        logger.error(f"failed after {max_attempts} attempts: {e}")
-                        raise
-                    logger.warning(f"attempt {attempts} failed, retrying in {current_delay}s")
-                    time.sleep(current_delay)
-                    current_delay *= backoff
+                except exceptions as e:
+                    last_exception = e
+                    logger.warning(f"attempt {attempt + 1} failed: {e}")
+                    time.sleep(delay * (2 ** attempt))
+            raise last_exception
         return wrapper
     return decorator
