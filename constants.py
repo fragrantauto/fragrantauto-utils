@@ -1,32 +1,27 @@
 from typing import Final
 
-# Network identifiers
+# Network constants
 MAINNET_CHAIN_ID: Final[int] = 1
-BSC_CHAIN_ID: Final[int] = 56
+SEPOLIA_CHAIN_ID: Final[int] = 11155111
 
-# Token decimal standards
+# Default decimals for ERC20 tokens
 DEFAULT_DECIMALS: Final[int] = 18
-USDC_DECIMALS: Final[int] = 6
 
-# Transaction configurations
-GAS_BUFFER_PERCENTAGE: Final[float] = 1.2
+# Gas estimation multipliers
+GAS_BUFFER_MULTIPLIER: Final[float] = 1.2
+MIN_GAS_LIMIT: Final[int] = 21000
+
+# Common time constants
+BLOCK_TIME_SECONDS: Final[int] = 12
+RETRY_DELAY_SECONDS: Final[float] = 2.5
+
+# HTTP configurations
+REQUEST_TIMEOUT: Final[int] = 30
 MAX_RETRIES: Final[int] = 3
-TIMEOUT_SECONDS: Final[int] = 30
 
-# Supported DEX protocols
-UNISWAP_V3: Final[str] = 'uniswap_v3'
-PANCAKESWAP_V3: Final[str] = 'pancakeswap_v3'
+# Precision settings
+PRECISION_SCALE: Final[int] = 8
 
-# API request constants
-USER_AGENT: Final[str] = 'fragrantauto-utils/1.0.0'
-CONTENT_TYPE_JSON: Final[str] = 'application/json'
-
-# Error handling constants
-RETRYABLE_RPC_ERRORS: Final[tuple] = (
-    'Server error',
-    'Gateway timeout',
-    'Rate limit exceeded'
-)
-
-# Formatting defaults
-PRECISION_LIMIT: Final[int] = 8
+# Standard transaction status
+STATUS_SUCCESS: Final[int] = 1
+STATUS_FAILURE: Final[int] = 0
