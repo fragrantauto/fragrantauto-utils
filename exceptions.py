@@ -1,22 +1,33 @@
 class FragrantAutoError(Exception):
     """Base exception for fragrantauto-utils."""
 
-class InsufficientLiquidityError(FragrantAutoError):
-    """Raised when pool liquidity is too low."""
 
-class RateLimitExceededError(FragrantAutoError):
-    """Raised on API rate limit breaches."""
+class ExchangeConnectionError(FragrantAutoError):
+    """Raised when network requests to exchanges fail."""
 
-class InvalidTradePathError(FragrantAutoError):
-    """Raised when swap path is invalid."""
 
-class AuthenticationError(FragrantAutoError):
-    """Raised on signature or key failures."""
+class InsufficientFundsError(FragrantAutoError):
+    """Raised when wallet balance is below threshold."""
 
-def handle_crypto_error(exc: Exception) -> None:
-    if isinstance(exc, RateLimitExceededError):
-        print(f"Retrying after cooldown: {exc}")
-    elif isinstance(exc, InsufficientLiquidityError):
-        print(f"Adjusting slippage for: {exc}")
-    else:
-        raise exc
+
+class OrderPlacementError(FragrantAutoError):
+    """Raised when an exchange rejects an order."""
+
+
+class ValidationError(FragrantAutoError):
+    """Raised when input parameters fail schema checks."""
+
+
+class ConfigurationError(FragrantAutoError):
+    """Raised when mandatory config values are missing."""
+
+
+class RateLimitExceeded(FragrantAutoError):
+    """Raised when API rate limits are hit."""
+
+
+def handle_exception(e: Exception) -> None:
+    """Centralized exception re-raising wrapper."""
+    if not isinstance(e, FragrantAutoError):
+        raise FragrantAutoError(f"Unexpected error: {str(e)}") from e
+    raise e
