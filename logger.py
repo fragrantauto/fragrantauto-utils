@@ -1,31 +1,47 @@
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-LOG_DIR = Path("logs")
-LOG_FILE = LOG_DIR / "fragrantauto.log"
 
-def setup_logger(name: str = "fragrantauto") -> logging.Logger:
-    LOG_DIR.mkdir(exist_ok=True)
+def setup_logger(
+    name: str = "fragrantauto",
+    log_dir: str = "logs",
+    filename: str = "crypto_bot.log",
+    level: int = logging.INFO,
+    max_bytes: int = 10_000_000,
+    backup_count: int = 5,
+) -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
+
+    if logger.handlers:
+        return logger
+
+    log_path = Path(log_dir)
+    log_path.mkdir(parents=True, exist_ok=True)
+    file_path = log_path / filename
 
     formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    handler = RotatingFileHandler(
-        LOG_FILE, 
-        maxBytes=5 * 1024 * 1024, 
-        backupCount=5
+    file_handler = RotatingFileHandler(
+        file_path,
+        maxBytes=max_bytes,
+        backupCount=backup_count,
+        encoding="utf-8",
     )
-    handler.setFormatter(formatter)
-    
-    console = logging.StreamHandler()
-    console.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
-    if not logger.handlers:
-        logger.addHandler(handler)
-        logger.addHandler(console)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
     return logger
+
+
+def get_logger(name: str = "fragrantauto") -> logging.Logger:
+    return logging.getLogger(name)
