@@ -1,36 +1,31 @@
-from typing import Dict, Any, Optional
 import logging
+from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+class CryptoHandlerError(Exception):
+    pass
 
-class CryptoHandler:
-    def __init__(self, api_key: str, timeout: int = 30) -> None:
-        self.api_key = api_key
-        self.timeout = timeout
+class RateLimitError(CryptoHandlerError):
+    pass
 
-    def validate_payload(self, data: Dict[str, Any]) -> bool:
-        """Verify structure of incoming crypto transaction payload."""
-        required_fields = {'asset', 'amount', 'address'}
-        return all(field in data for field in required_fields)
+class InsufficientFundsError(CryptoHandlerError):
+    pass
 
-    def process_order(self, order_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Execute transaction logic given a valid payload."""
-        if not self.validate_payload(payload):
-            logger.error(f"Invalid payload for order {order_id}")
-            return None
+class TransactionProcessor:
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
 
+    def execute(self, operation: str, *args: Any) -> Optional[dict]:
         try:
-            result = {
-                "order_id": order_id,
-                "status": "processed",
-                "asset": payload.get("asset"),
-                "amount": float(payload.get("amount", 0))
-            }
-            return result
-        except (ValueError, TypeError) as e:
-            logger.exception(f"Processing failed for {order_id}: {e}")
-            return None
+            return self._perform_trade(operation, *args)
+        except RateLimitError as e:
+            self.logger.warning(f"Rate limit exceeded: {e}")
+        except InsufficientFundsError as e:
+            self.logger.error(f"Insufficient funds for operation: {e}")
+        except Exception as e:
+            self.logger.critical(f"Unexpected error during {operation}: {e}")
+        return None
 
-    def get_status(self, order_id: str) -> Dict[str, str]:
-        """Retrieve current status of a crypto order."""
-        return {"id": order_id, "state": "confirmed"}
+    def _perform_trade(self, operation: str, *args: Any) -> dict:
+        if not operation:
+            raise ValueError("Operation cannot be empty")
+        return {"status": "success", "op": operation}
