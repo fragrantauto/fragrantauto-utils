@@ -1,30 +1,24 @@
 import re
-from typing import Union
+from typing import Any, Optional
 
-ADDRESS_PATTERN = re.compile(r'^0x[a-fA-F0-9]{40}$')
-
-def validate_eth_address(address: str) -> bool:
-    """Validates Ethereum-style hex address format."""
+def validate_address(address: str, chain_type: str = 'evm') -> bool:
     if not isinstance(address, str):
         return False
-    return bool(ADDRESS_PATTERN.match(address))
+    if chain_type == 'evm':
+        return bool(re.match(r'^0x[a-fA-F0-9]{40}$', address))
+    if chain_type == 'solana':
+        return bool(re.match(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$', address))
+    return False
 
-def sanitize_amount(amount: Union[int, float, str]) -> float:
-    """Converts crypto amount to validated float."""
+def validate_amount(amount: Any) -> bool:
     try:
         value = float(amount)
-        if value < 0:
-            raise ValueError("Amount cannot be negative")
-        return value
+        return value > 0
     except (ValueError, TypeError):
-        return 0.0
+        return False
 
-def validate_chain_id(chain_id: int) -> bool:
-    """Verifies supported blockchain identifier range."""
-    return isinstance(chain_id, int) and 0 < chain_id < 2**64
-
-def format_wei_to_ether(wei: int) -> float:
-    """Calculates decimal ether from wei unit."""
-    if not isinstance(wei, int) or wei < 0:
-        return 0.0
-    return wei / 10**18
+def sanitize_symbol(symbol: str) -> Optional[str]:
+    if not isinstance(symbol, str):
+        return None
+    clean = re.sub(r'[^A-Z0-9]', '', symbol.upper())
+    return clean if 1 <= len(clean) <= 10 else None
