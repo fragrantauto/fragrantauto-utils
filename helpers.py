@@ -1,28 +1,24 @@
-import time
-import logging
-from typing import Any, Dict, Optional
+from typing import Union, Dict, Any
+from decimal import Decimal, ROUND_DOWN
 
-logger = logging.getLogger(__name__)
 
-def format_crypto_amount(amount: float, precision: int = 8) -> str:
-    return f"{amount:.{precision}f}".rstrip('0').rstrip('.')
+def format_amount(amount: Union[float, str, Decimal], precision: int = 8) -> Decimal:
+    factor = Decimal(10) ** -precision
+    return Decimal(str(amount)).quantize(factor, rounding=ROUND_DOWN)
 
-def retry_on_failure(retries: int = 3, delay: float = 1.0):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            last_ex = None
-            for i in range(retries):
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    last_ex = e
-                    time.sleep(delay * (2 ** i))
-            raise last_ex
-        return wrapper
-    return decorator
 
-def validate_payload(data: Dict[str, Any], required_keys: list) -> bool:
-    return all(key in data for key in required_keys)
+def validate_order(order: Dict[str, Any], required_keys: list) -> bool:
+    return all(key in order for key in required_keys)
 
-def sanitize_symbol(symbol: str) -> str:
-    return symbol.upper().replace('/', '_').strip()
+
+def calculate_fee(amount: Decimal, fee_rate: Decimal) -> Decimal:
+    return (amount * fee_rate).quantize(Decimal('0.00000001'))
+
+
+def parse_symbol(symbol: str) -> tuple[str, str]:
+    base, quote = symbol.split('/')
+    return base.upper(), quote.upper()
+
+
+def sanitize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in payload.items() if v is not None}
