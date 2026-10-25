@@ -1,35 +1,30 @@
 import os
-from typing import Any, Optional
+import json
+from typing import Any, Dict
 
-class ConfigError(Exception):
-    pass
+DEFAULTS = {
+    "RPC_URL": "https://api.mainnet-beta.solana.com",
+    "TIMEOUT": 30,
+    "MAX_RETRIES": 3,
+    "DEBUG": False
+}
 
-def get_env_variable(key: str, default: Optional[str] = None) -> str:
-    value = os.getenv(key, default)
-    if value is None:
-        raise ConfigError(f'missing required environment variable: {key}')
-    return value
+def load_config(path: str = "config.json") -> Dict[str, Any]:
+    config = DEFAULTS.copy()
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            user_config = json.load(f)
+            config.update(user_config)
+    return config
 
-class AppConfig:
-    def __init__(self):
-        try:
-            self.api_key = get_env_variable('FRAGRANTAUTO_API_KEY')
-            self.rpc_url = get_env_variable('FRAGRANTAUTO_RPC_URL')
-            self.timeout = int(os.getenv('FRAGRANTAUTO_TIMEOUT', '30'))
-        except (ValueError, ConfigError) as e:
-            raise ConfigError(f'configuration initialization failure: {e}')
+class Config:
+    def __init__(self, path: str = "config.json"):
+        self._data = load_config(path)
 
-    def validate(self) -> bool:
-        if not self.api_key.startswith('sk-'):
-            return False
-        if not self.rpc_url.startswith(('http://', 'https://')):
-            return False
-        return True
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._data.get(key, default)
 
-settings = None
-
-def load_config() -> AppConfig:
-    global settings
-    if settings is None:
-        settings = AppConfig()
-    return settings
+    def __getattr__(self, name: str) -> Any:
+        if name in self._data:
+            return self._data[name]
+        raise AttributeError(f"config has no attribute {name}")
