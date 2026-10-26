@@ -1,24 +1,33 @@
 import re
-from typing import Any, Optional
+from typing import Any
 
-def validate_address(address: str, chain_type: str = 'evm') -> bool:
+ADDRESS_PATTERN = re.compile(r'^0x[a-fA-F0-9]{40}$')
+
+def is_eth_address(address: Any) -> bool:
     if not isinstance(address, str):
         return False
-    if chain_type == 'evm':
-        return bool(re.match(r'^0x[a-fA-F0-9]{40}$', address))
-    if chain_type == 'solana':
-        return bool(re.match(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$', address))
-    return False
+    return bool(ADDRESS_PATTERN.match(address))
 
-def validate_amount(amount: Any) -> bool:
+def validate_amount(amount: Any) -> float:
     try:
         value = float(amount)
-        return value > 0
-    except (ValueError, TypeError):
+        if value <= 0:
+            raise ValueError('Amount must be positive')
+        return value
+    except (TypeError, ValueError):
+        raise ValueError(f'Invalid amount: {amount}')
+
+def is_valid_chain_id(chain_id: Any) -> bool:
+    try:
+        return isinstance(chain_id, int) and chain_id > 0
+    except Exception:
         return False
 
-def sanitize_symbol(symbol: str) -> Optional[str]:
-    if not isinstance(symbol, str):
-        return None
-    clean = re.sub(r'[^A-Z0-9]', '', symbol.upper())
-    return clean if 1 <= len(clean) <= 10 else None
+def validate_gas_price(gas_price: Any) -> int:
+    try:
+        value = int(gas_price)
+        if value < 0:
+            raise ValueError('Gas price cannot be negative')
+        return value
+    except (TypeError, ValueError):
+        raise ValueError(f'Invalid gas price: {gas_price}')
