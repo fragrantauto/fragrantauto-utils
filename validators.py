@@ -1,33 +1,35 @@
 import re
 from typing import Any
 
-ADDRESS_PATTERN = re.compile(r'^0x[a-fA-F0-9]{40}$')
 
-def is_eth_address(address: Any) -> bool:
+def is_valid_evm_address(address: Any) -> bool:
     if not isinstance(address, str):
         return False
-    return bool(ADDRESS_PATTERN.match(address))
+    return bool(re.match(r'^0x[a-fA-F0-9]{40}$', address))
 
-def validate_amount(amount: Any) -> float:
-    try:
-        value = float(amount)
-        if value <= 0:
-            raise ValueError('Amount must be positive')
-        return value
-    except (TypeError, ValueError):
-        raise ValueError(f'Invalid amount: {amount}')
 
-def is_valid_chain_id(chain_id: Any) -> bool:
+def is_valid_amount(value: Any) -> bool:
     try:
-        return isinstance(chain_id, int) and chain_id > 0
-    except Exception:
+        amount = float(value)
+        return amount >= 0
+    except (ValueError, TypeError):
         return False
 
-def validate_gas_price(gas_price: Any) -> int:
-    try:
-        value = int(gas_price)
-        if value < 0:
-            raise ValueError('Gas price cannot be negative')
-        return value
-    except (TypeError, ValueError):
-        raise ValueError(f'Invalid gas price: {gas_price}')
+
+def sanitize_symbol(symbol: str) -> str:
+    return re.sub(r'[^A-Z0-9]', '', symbol.upper())
+
+
+def validate_transaction_payload(data: dict) -> bool:
+    required_fields = {'from', 'to', 'value'}
+    if not isinstance(data, dict):
+        return False
+    
+    if not required_fields.issubset(data.keys()):
+        return False
+    
+    return (
+        is_valid_evm_address(data['from']) and
+        is_valid_evm_address(data['to']) and
+        is_valid_amount(data['value'])
+    )
