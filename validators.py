@@ -1,35 +1,38 @@
 import re
 from typing import Any
 
+EVM_ADDRESS_REGEX = re.compile(r"^0x[a-fA-F0-9]{40}$")
+HEX_32_BYTE_REGEX = re.compile(r"^0x[a-fA-F0-9]{64}$")
+BASE58_REGEX = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
-def is_valid_evm_address(address: Any) -> bool:
+
+def is_valid_evm_address(address: str) -> bool:
     if not isinstance(address, str):
         return False
-    return bool(re.match(r'^0x[a-fA-F0-9]{40}$', address))
+    return bool(EVM_ADDRESS_REGEX.match(address))
 
 
-def is_valid_amount(value: Any) -> bool:
+def is_valid_tx_hash(tx_hash: str) -> bool:
+    if not isinstance(tx_hash, str):
+        return False
+    return bool(HEX_32_BYTE_REGEX.match(tx_hash))
+
+
+def is_valid_solana_address(address: str) -> bool:
+    if not isinstance(address, str):
+        return False
+    return bool(BASE58_REGEX.match(address))
+
+
+def is_positive_amount(amount: Any) -> bool:
     try:
-        amount = float(value)
-        return amount >= 0
+        val = float(amount)
+        return val > 0
     except (ValueError, TypeError):
         return False
 
 
-def sanitize_symbol(symbol: str) -> str:
-    return re.sub(r'[^A-Z0-9]', '', symbol.upper())
-
-
-def validate_transaction_payload(data: dict) -> bool:
-    required_fields = {'from', 'to', 'value'}
-    if not isinstance(data, dict):
+def validate_gas_limit(gas_limit: int, min_gas: int = 21000, max_gas: int = 15000000) -> bool:
+    if not isinstance(gas_limit, int):
         return False
-    
-    if not required_fields.issubset(data.keys()):
-        return False
-    
-    return (
-        is_valid_evm_address(data['from']) and
-        is_valid_evm_address(data['to']) and
-        is_valid_amount(data['value'])
-    )
+    return min_gas <= gas_limit <= max_gas
