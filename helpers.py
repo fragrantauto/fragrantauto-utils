@@ -1,24 +1,47 @@
-from typing import Union, Dict, Any
-from decimal import Decimal, ROUND_DOWN
+import re
+from typing import Any, Dict, List
 
 
-def format_amount(amount: Union[float, str, Decimal], precision: int = 8) -> Decimal:
-    factor = Decimal(10) ** -precision
-    return Decimal(str(amount)).quantize(factor, rounding=ROUND_DOWN)
+class ValidationError(Exception):
+    pass
 
 
-def validate_order(order: Dict[str, Any], required_keys: list) -> bool:
-    return all(key in order for key in required_keys)
+def validate_address(address: str) -> bool:
+    if not isinstance(address, str):
+        return False
+    return bool(re.match(r"^0x[a-fA-F0-9]{40}$", address))
 
 
-def calculate_fee(amount: Decimal, fee_rate: Decimal) -> Decimal:
-    return (amount * fee_rate).quantize(Decimal('0.00000001'))
+def validate_trade_payload(payload: Dict[str, Any]) -> None:
+    required_keys = {"address", "symbol", "amount", "side"}
+    if not required_keys.issubset(payload.keys()):
+        missing = required_keys - payload.keys()
+        raise ValidationError(f"Missing required fields: {', '.join(missing)}")
+
+    if not validate_address(payload["address"]):
+        raise ValidationError(f"Invalid Ethereum address: {payload['address']}")
+
+    if not isinstance(payload["amount"], (int, float)) or payload["amount"] <= 0:
+        raise ValidationError(f"Amount must be a positive number: {payload['amount']}")
+
+    if payload["side"] not in {"BUY", "SELL"}:
+        raise ValidationError(f"Invalid trade side: {payload['side']}")
 
 
-def parse_symbol(symbol: str) -> tuple[str, str]:
-    base, quote = symbol.split('/')
-    return base.upper(), quote.upper()
-
-
-def sanitize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: v for k, v in payload.items() if v is not None}
+def process_trade_batch(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    processed = []
+    for index, payload in enumerate(payloads):
+        try:
+            validate_trade_payload(payload)
+            processed.append({
+                "index": index,
+                "status": "valid",
+                "payload": payload
+            })
+        except ValidationError as err:
+            processed.append({
+                "index": index,
+                "status": "invalid",
+                "error": str(err)
+            })
+    return processed
