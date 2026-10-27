@@ -1,31 +1,33 @@
 import logging
 from typing import Any, Optional
 
-class CryptoHandlerError(Exception):
+class CryptoTransactionError(Exception):
     pass
 
-class RateLimitError(CryptoHandlerError):
-    pass
+logger = logging.getLogger(__name__)
 
-class InsufficientFundsError(CryptoHandlerError):
-    pass
+def execute_trade(trade_data: dict) -> Optional[dict]:
+    try:
+        if not trade_data.get("pair") or not isinstance(trade_data.get("amount"), (int, float)):
+            raise ValueError("invalid trade structure")
+            
+        if trade_data["amount"] <= 0:
+            raise ValueError("non-positive amount provided")
+            
+        # simulate network request to exchange
+        return {"status": "success", "tx_id": "0xabc123"}
 
-class TransactionProcessor:
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
-
-    def execute(self, operation: str, *args: Any) -> Optional[dict]:
-        try:
-            return self._perform_trade(operation, *args)
-        except RateLimitError as e:
-            self.logger.warning(f"Rate limit exceeded: {e}")
-        except InsufficientFundsError as e:
-            self.logger.error(f"Insufficient funds for operation: {e}")
-        except Exception as e:
-            self.logger.critical(f"Unexpected error during {operation}: {e}")
+    except ValueError as ve:
+        logger.error(f"validation failure: {ve}")
         return None
+    except KeyError as ke:
+        logger.error(f"missing required field: {ke}")
+        return None
+    except Exception as e:
+        logger.critical(f"unexpected system error: {e}")
+        raise CryptoTransactionError("critical trade failure") from e
 
-    def _perform_trade(self, operation: str, *args: Any) -> dict:
-        if not operation:
-            raise ValueError("Operation cannot be empty")
-        return {"status": "success", "op": operation}
+def validate_response(response: Any) -> bool:
+    if response is None:
+        return False
+    return isinstance(response, dict) and "tx_id" in response
