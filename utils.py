@@ -1,26 +1,27 @@
-import time
-import functools
-import logging
-from typing import Callable, Any
+import decimal
+from typing import Union
 
-logger = logging.getLogger(__name__)
 
-def retry(max_retries: int = 3, delay: float = 1.0, backoff: int = 2):
-    def decorator(func: Callable):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            retries = 0
-            current_delay = delay
-            while retries < max_retries:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    retries += 1
-                    if retries >= max_retries:
-                        logger.error(f"failed after {max_retries} attempts: {e}")
-                        raise
-                    logger.warning(f"retry {retries}/{max_retries} due to {e}")
-                    time.sleep(current_delay)
-                    current_delay *= backoff
-        return wrapper
-    return decorator
+def to_decimal(value: Union[int, float, str]) -> decimal.Decimal:
+    return decimal.Decimal(str(value))
+
+
+def format_currency(value: decimal.Decimal, precision: int = 8) -> str:
+    return f"{value:.{precision}f}"
+
+
+def calculate_fee(amount: decimal.Decimal, rate: decimal.Decimal) -> decimal.Decimal:
+    return (amount * rate).quantize(decimal.Decimal('0.00000001'), rounding=decimal.ROUND_HALF_UP)
+
+
+def validate_address(address: str, prefix: str = '0x') -> bool:
+    return address.startswith(prefix) and len(address) == 42
+
+
+def get_dust_threshold(symbol: str) -> decimal.Decimal:
+    thresholds = {
+        'BTC': decimal.Decimal('0.000005'),
+        'ETH': decimal.Decimal('0.0001'),
+        'USDT': decimal.Decimal('1.0')
+    }
+    return thresholds.get(symbol.upper(), decimal.Decimal('0.00001'))
