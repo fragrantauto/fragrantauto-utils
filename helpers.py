@@ -1,47 +1,33 @@
 import re
-from typing import Any, Dict, List
+from typing import Union
+
+DEFAULT_DECIMALS = 18
 
 
-class ValidationError(Exception):
-    pass
+def to_wei(amount: Union[int, float], decimals: int = DEFAULT_DECIMALS) -> int:
+    return int(amount * (10 ** decimals))
 
 
-def validate_address(address: str) -> bool:
-    if not isinstance(address, str):
+def from_wei(amount: int, decimals: int = DEFAULT_DECIMALS) -> float:
+    return amount / (10 ** decimals)
+
+
+def truncate_address(address: str, prefix_len: int = 6, suffix_len: int = 4) -> str:
+    if not address or len(address) <= prefix_len + suffix_len:
+        return address
+    return f"{address[:prefix_len]}...{address[-suffix_len:]}"
+
+
+def calculate_slippage_price(
+    price: float, slippage_percent: float, is_buy: bool = True
+) -> float:
+    adjustment = (slippage_percent / 100.0)
+    factor = 1.0 + adjustment if is_buy else 1.0 - adjustment
+    return round(price * factor, 8)
+
+
+def is_valid_hex(hex_str: str) -> bool:
+    clean_hex = hex_str[2:] if hex_str.startswith("0x") else hex_str
+    if not clean_hex:
         return False
-    return bool(re.match(r"^0x[a-fA-F0-9]{40}$", address))
-
-
-def validate_trade_payload(payload: Dict[str, Any]) -> None:
-    required_keys = {"address", "symbol", "amount", "side"}
-    if not required_keys.issubset(payload.keys()):
-        missing = required_keys - payload.keys()
-        raise ValidationError(f"Missing required fields: {', '.join(missing)}")
-
-    if not validate_address(payload["address"]):
-        raise ValidationError(f"Invalid Ethereum address: {payload['address']}")
-
-    if not isinstance(payload["amount"], (int, float)) or payload["amount"] <= 0:
-        raise ValidationError(f"Amount must be a positive number: {payload['amount']}")
-
-    if payload["side"] not in {"BUY", "SELL"}:
-        raise ValidationError(f"Invalid trade side: {payload['side']}")
-
-
-def process_trade_batch(payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    processed = []
-    for index, payload in enumerate(payloads):
-        try:
-            validate_trade_payload(payload)
-            processed.append({
-                "index": index,
-                "status": "valid",
-                "payload": payload
-            })
-        except ValidationError as err:
-            processed.append({
-                "index": index,
-                "status": "invalid",
-                "error": str(err)
-            })
-    return processed
+    return bool(re.fullmatch(r"[0-9a-fA-F]+", clean_hex)) and len(clean_hex) % 2 == 0
