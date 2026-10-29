@@ -1,18 +1,27 @@
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Union
+import time
+import functools
+import logging
+from typing import Callable, Any
 
-def format_amount(value: Union[str, float, Decimal], precision: int = 8) -> str:
-    return str(Decimal(str(value)).quantize(Decimal(f'1.{"0" * precision}'), rounding=ROUND_HALF_UP))
+logger = logging.getLogger(__name__)
 
-def calculate_fee(amount: Decimal, rate: Decimal) -> Decimal:
-    return (amount * rate).quantize(Decimal('0.00000001'), rounding=ROUND_HALF_UP)
+def retry_network_call(max_retries: int = 3, delay: float = 1.0):
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except (ConnectionError, TimeoutError) as e:
+                    last_exception = e
+                    logger.warning(f"attempt {attempt + 1} failed: {e}")
+                    time.sleep(delay * (2 ** attempt))
+            raise last_exception
+        return wrapper
+    return decorator
 
-def validate_pair(pair: str) -> bool:
-    parts = pair.split('/')
-    return len(parts) == 2 and all(len(p) >= 2 for p in parts)
-
-def sanitize_order_id(order_id: str) -> str:
-    return ''.join(c for c in order_id if c.isalnum())
-
-def compute_price_impact(price: Decimal, target: Decimal) -> Decimal:
-    return abs((target - price) / price) * 100
+@retry_network_call(max_retries=3, delay=2.0)
+def fetch_price_data(ticker: str) -> dict:
+    # implementation for fetching crypto prices
+    return {"symbol": ticker, "price": 0.0}
