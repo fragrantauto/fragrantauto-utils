@@ -1,30 +1,34 @@
-import os
 import json
+import os
 from typing import Any, Dict
 
-DEFAULTS = {
-    "RPC_URL": "https://api.mainnet-beta.solana.com",
-    "TIMEOUT": 30,
-    "MAX_RETRIES": 3,
-    "DEBUG": False
+DEFAULT_CONFIG = {
+    "rpc_url": "https://mainnet.infura.io/v3/",
+    "timeout": 30,
+    "retry_attempts": 3,
+    "gas_buffer": 1.2
 }
 
-def load_config(path: str = "config.json") -> Dict[str, Any]:
-    config = DEFAULTS.copy()
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            user_config = json.load(f)
-            config.update(user_config)
-    return config
-
-class Config:
+class ConfigLoader:
     def __init__(self, path: str = "config.json"):
-        self._data = load_config(path)
+        self.path = path
+        self.data = self._load()
+
+    def _load(self) -> Dict[str, Any]:
+        if not os.path.exists(self.path):
+            return DEFAULT_CONFIG
+        with open(self.path, "r") as f:
+            try:
+                user_config = json.load(f)
+                return {**DEFAULT_CONFIG, **user_config}
+            except json.JSONDecodeError:
+                return DEFAULT_CONFIG
 
     def get(self, key: str, default: Any = None) -> Any:
-        return self._data.get(key, default)
+        return self.data.get(key, default)
 
-    def __getattr__(self, name: str) -> Any:
-        if name in self._data:
-            return self._data[name]
-        raise AttributeError(f"config has no attribute {name}")
+    def __getitem__(self, key: str) -> Any:
+        return self.data[key]
+
+    def __repr__(self) -> str:
+        return f"ConfigLoader(data={self.data})"
