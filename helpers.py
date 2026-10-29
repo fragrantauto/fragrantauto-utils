@@ -1,33 +1,44 @@
+from decimal import Decimal, InvalidOperation
 import re
-from typing import Union
 
-DEFAULT_DECIMALS = 18
-
-
-def to_wei(amount: Union[int, float], decimals: int = DEFAULT_DECIMALS) -> int:
-    return int(amount * (10 ** decimals))
+ETH_ADDRESS_PATTERN = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 
-def from_wei(amount: int, decimals: int = DEFAULT_DECIMALS) -> float:
-    return amount / (10 ** decimals)
+class CryptoValueError(ValueError):
+    pass
 
 
-def truncate_address(address: str, prefix_len: int = 6, suffix_len: int = 4) -> str:
-    if not address or len(address) <= prefix_len + suffix_len:
-        return address
-    return f"{address[:prefix_len]}...{address[-suffix_len:]}"
+def parse_wei_to_ether(wei_value: int | str) -> Decimal:
+    try:
+        val = Decimal(str(wei_value))
+        if val < 0:
+            raise CryptoValueError("wei amount cannot be negative")
+        return val / Decimal("1000000000000000000")
+    except (InvalidOperation, TypeError) as exc:
+        raise CryptoValueError(f"invalid wei value: {wei_value}") from exc
 
 
-def calculate_slippage_price(
-    price: float, slippage_percent: float, is_buy: bool = True
-) -> float:
-    adjustment = (slippage_percent / 100.0)
-    factor = 1.0 + adjustment if is_buy else 1.0 - adjustment
-    return round(price * factor, 8)
+def sanitize_hex_string(hex_str: str) -> str:
+    if not isinstance(hex_str, str):
+        raise TypeError("hex input must be a string")
+    cleaned = hex_str.strip()
+    if not cleaned:
+        raise CryptoValueError("hex string cannot be empty")
+    if cleaned.startswith(("0x", "0X")):
+        cleaned = cleaned[2:]
+    if len(cleaned) % 2 != 0:
+        cleaned = f"0{cleaned}"
+    try:
+        int(cleaned, 16)
+    except ValueError as exc:
+        raise CryptoValueError(f"invalid hex payload: {hex_str}") from exc
+    return f"0x{cleaned.lower()}"
 
 
-def is_valid_hex(hex_str: str) -> bool:
-    clean_hex = hex_str[2:] if hex_str.startswith("0x") else hex_str
-    if not clean_hex:
-        return False
-    return bool(re.fullmatch(r"[0-9a-fA-F]+", clean_hex)) and len(clean_hex) % 2 == 0
+def calculate_slippage(expected: Decimal, actual: Decimal) -> Decimal:
+    if expected <= 0 or actual < 0:
+        raise CryptoValueError("trade amounts must be positive")
+    try:
+        return ((expected - actual) / expected) * Decimal("100")
+    except ZeroDivisionError as exc:
+        raise CryptoValueError("expected amount cannot be zero") from exc
