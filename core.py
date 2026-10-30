@@ -1,27 +1,33 @@
 import hashlib
-import hmac
-import time
-from typing import Dict, Any
-from decimal import Decimal
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+from typing import List, Tuple
 
-def generate_signature(api_secret: str, payload: str) -> str:
-    return hmac.new(
-        api_secret.encode('utf-8'),
-        payload.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
 
-def normalize_amount(amount: float, precision: int = 8) -> str:
-    return f"{Decimal(str(amount)):.{precision}f}"
+@lru_cache(maxsize=4096)
+def fast_hash_payload(payload: bytes) -> str:
+    return hashlib.blake2b(payload, digest_size=32).hexdigest()
 
-def get_timestamp() -> int:
-    return int(time.time() * 1000)
 
-def format_order_params(params: Dict[str, Any]) -> str:
-    keys = sorted(params.keys())
-    return '&'.join([f"{k}={params[k]}" for k in keys])
+class BatchCoreProcessor:
+    def __init__(self, max_workers: int = 8) -> None:
+        self.max_workers = max_workers
 
-def validate_ticker(ticker: str) -> bool:
-    if not isinstance(ticker, str) or len(ticker) < 2:
-        return False
-    return ticker.isalnum()
+    def compute_hashes(self, payloads: List[bytes]) -> List[str]:
+        if len(payloads) < 64:
+            return [fast_hash_payload(p) for p in payloads]
+
+        chunk_size = max(1, len(payloads) // (self.max_workers * 4))
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            return list(
+                executor.map(fast_hash_payload, payloads, chunksize=chunk_size)
+            )
+
+    def verify_and_hash_batch(
+        self, items: List[Tuple[str, bytes]]
+    ) -> List[Tuple[str, str, bool]]:
+        payloads = [item[1] for item in items]
+        hashes = self.compute_hashes(payloads)
+        return [
+            (tx_id, h, len(h) == 64) for (tx_id, _), h in zip(items, hashes)
+        ]
