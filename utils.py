@@ -1,27 +1,51 @@
-import decimal
-from typing import Union
+import asyncio
+import functools
+import logging
+import random
+import time
+from typing import Any, Callable, Type, Union
+
+logger = logging.getLogger("fragrantauto.utils")
 
 
-def to_decimal(value: Union[int, float, str]) -> decimal.Decimal:
-    return decimal.Decimal(str(value))
+def retry_network_op(
+    max_retries: int = 3,
+    initial_delay: float = 1.0,
+    backoff_factor: float = 2.0,
+    exceptions: Union[Type[Exception], tuple[Type[Exception], ...]] = Exception,
+) -> Callable:
+    def decorator(func: Callable) -> Callable:
+        if asyncio.iscoroutinefunction(func):
 
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                delay = initial_delay
+                for attempt in range(1, max_retries + 1):
+                    try:
+                        return await func(*args, **kwargs)
+                    except exceptions as err:
+                        if attempt == max_retries:
+                            raise err
+                        jitter = random.uniform(0, 0.1 * delay)
+                        await asyncio.sleep(delay + jitter)
+                        delay *= backoff_factor
 
-def format_currency(value: decimal.Decimal, precision: int = 8) -> str:
-    return f"{value:.{precision}f}"
+            return async_wrapper
+        else:
 
+            @functools.wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                delay = initial_delay
+                for attempt in range(1, max_retries + 1):
+                    try:
+                        return func(*args, **kwargs)
+                    except exceptions as err:
+                        if attempt == max_retries:
+                            raise err
+                        jitter = random.uniform(0, 0.1 * delay)
+                        time.sleep(delay + jitter)
+                        delay *= backoff_factor
 
-def calculate_fee(amount: decimal.Decimal, rate: decimal.Decimal) -> decimal.Decimal:
-    return (amount * rate).quantize(decimal.Decimal('0.00000001'), rounding=decimal.ROUND_HALF_UP)
+            return sync_wrapper
 
-
-def validate_address(address: str, prefix: str = '0x') -> bool:
-    return address.startswith(prefix) and len(address) == 42
-
-
-def get_dust_threshold(symbol: str) -> decimal.Decimal:
-    thresholds = {
-        'BTC': decimal.Decimal('0.000005'),
-        'ETH': decimal.Decimal('0.0001'),
-        'USDT': decimal.Decimal('1.0')
-    }
-    return thresholds.get(symbol.upper(), decimal.Decimal('0.00001'))
+    return decorator
