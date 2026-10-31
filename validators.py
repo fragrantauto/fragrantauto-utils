@@ -1,48 +1,53 @@
 import re
 from typing import Any, Dict, Optional
 
-
-class ValidationError(Exception):
-    """Raised when input validation fails in processing pipeline."""
-    pass
-
-
-def validate_eth_address(address: str) -> str:
-    if not isinstance(address, str) or not re.match(r"^0x[a-fA-F0-9]{40}$", address):
-        raise ValidationError(f"Invalid Ethereum address: {address}")
-    return address.lower()
+ETH_ADDR_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+TX_HASH_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
+BASE58_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]+$")
 
 
-def validate_tx_hash(tx_hash: str) -> str:
-    if not isinstance(tx_hash, str) or not re.match(r"^0x[a-fA-F0-9]{64}$", tx_hash):
-        raise ValidationError(f"Invalid transaction hash: {tx_hash}")
-    return tx_hash.lower()
+def is_ethereum_address(address: str) -> bool:
+    if not isinstance(address, str):
+        return False
+    return bool(ETH_ADDR_RE.match(address))
 
 
-def validate_amount(amount: Any, min_val: float = 0.0, max_val: Optional[float] = None) -> float:
+def is_transaction_hash(tx_hash: str) -> bool:
+    if not isinstance(tx_hash, str):
+        return False
+    return bool(TX_HASH_RE.match(tx_hash))
+
+
+def is_base58_string(data: str) -> bool:
+    if not isinstance(data, str) or not data:
+        return False
+    return bool(BASE58_RE.match(data))
+
+
+def validate_order_payload(payload: Dict[str, Any]) -> bool:
+    required_fields = {"symbol", "side", "amount", "price"}
+    if not isinstance(payload, dict) or not required_fields.issubset(payload.keys()):
+        return False
+
+    if payload["side"] not in ("buy", "sell"):
+        return False
+
     try:
-        val = float(amount)
+        amount = float(payload["amount"])
+        price = float(payload["price"])
+        return amount > 0 and price > 0
     except (ValueError, TypeError):
-        raise ValidationError(f"Amount must be numeric, got {type(amount).__name__}")
-    
-    if val <= min_val:
-        raise ValidationError(f"Amount must be greater than {min_val}, got {val}")
-    if max_val is not None and val > max_val:
-        raise ValidationError(f"Amount exceeds maximum threshold {max_val}, got {val}")
-    return val
+        return False
 
 
-def validate_transaction_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(payload, dict):
-        raise ValidationError("Payload must be a dictionary")
-    
-    required_fields = {"target_address", "amount", "tx_hash"}
-    missing_fields = required_fields - set(payload.keys())
-    if missing_fields:
-        raise ValidationError(f"Missing payload fields: {sorted(missing_fields)}")
-    
-    return {
-        "target_address": validate_eth_address(payload["target_address"]),
-        "amount": validate_amount(payload["amount"]),
-        "tx_hash": validate_tx_hash(payload["tx_hash"]),
-    }
+def normalize_hex(hex_str: str, byte_length: Optional[int] = None) -> str:
+    if not isinstance(hex_str, str):
+        raise TypeError("Input must be a string")
+    clean = hex_str.strip()
+    if clean.startswith(("0x", "0X")):
+        clean = clean[2:]
+    if len(clean) % 2 != 0:
+        clean = f"0{clean}"
+    if byte_length and len(clean) != byte_length * 2:
+        raise ValueError(f"Expected {byte_length} bytes, got {len(clean) // 2}")
+    return f"0x{clean.lower()}"
