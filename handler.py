@@ -1,33 +1,57 @@
 import logging
-from typing import Any, Optional
+import time
+from typing import Any, Callable, Optional
 
-class CryptoTransactionError(Exception):
+
+class CryptoAPIError(Exception):
     pass
 
-logger = logging.getLogger(__name__)
 
-def execute_trade(trade_data: dict) -> Optional[dict]:
-    try:
-        if not trade_data.get("pair") or not isinstance(trade_data.get("amount"), (int, float)):
-            raise ValueError("invalid trade structure")
-            
-        if trade_data["amount"] <= 0:
-            raise ValueError("non-positive amount provided")
-            
-        # simulate network request to exchange
-        return {"status": "success", "tx_id": "0xabc123"}
+class RateLimitExceededError(CryptoAPIError):
+    pass
 
-    except ValueError as ve:
-        logger.error(f"validation failure: {ve}")
+
+class InsufficientFundsError(CryptoAPIError):
+    pass
+
+
+class InvalidOrderError(CryptoAPIError):
+    pass
+
+
+class ExecutionHandler:
+    def __init__(self, max_retries: int = 3, backoff_factor: float = 1.5):
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
+        self.logger = logging.getLogger(__name__)
+
+    def execute_with_retry(
+        self, func: Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> Optional[Any]:
+        retries = 0
+        delay = 1.0
+
+        while retries <= self.max_retries:
+            try:
+                return func(*args, **kwargs)
+            except RateLimitExceededError as err:
+                retries += 1
+                if retries > self.max_retries:
+                    self.logger.error("Max retries exceeded for rate limit")
+                    raise err
+                self.logger.warning(
+                    f"Rate limit hit. Retrying in {delay:.2f}s... (Attempt {retries}/{self.max_retries})"
+                )
+                time.sleep(delay)
+                delay *= self.backoff_factor
+            except InsufficientFundsError as err:
+                self.logger.critical(f"Order aborted due to funds: {err}")
+                raise err
+            except InvalidOrderError as err:
+                self.logger.error(f"Invalid order parameters: {err}")
+                return None
+            except Exception as err:
+                self.logger.exception(f"Unexpected error during execution: {err}")
+                raise CryptoAPIError(f"Unhandled execution failure: {err}") from err
+
         return None
-    except KeyError as ke:
-        logger.error(f"missing required field: {ke}")
-        return None
-    except Exception as e:
-        logger.critical(f"unexpected system error: {e}")
-        raise CryptoTransactionError("critical trade failure") from e
-
-def validate_response(response: Any) -> bool:
-    if response is None:
-        return False
-    return isinstance(response, dict) and "tx_id" in response
