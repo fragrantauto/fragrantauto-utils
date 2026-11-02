@@ -2,32 +2,31 @@ class FragrantAutoError(Exception):
     """Base exception for fragrantauto-utils."""
 
 
-class ExchangeConnectionError(FragrantAutoError):
-    """Raised when network requests to exchanges fail."""
+class ConnectionTimeoutError(FragrantAutoError):
+    """Raised when network requests exceed threshold."""
 
 
-class InsufficientFundsError(FragrantAutoError):
-    """Raised when wallet balance is below threshold."""
-
-
-class OrderPlacementError(FragrantAutoError):
-    """Raised when an exchange rejects an order."""
+class RateLimitError(FragrantAutoError):
+    """Raised when API rate limits are exceeded."""
 
 
 class ValidationError(FragrantAutoError):
-    """Raised when input parameters fail schema checks."""
+    """Raised when cryptographic inputs are invalid."""
 
 
-class ConfigurationError(FragrantAutoError):
-    """Raised when mandatory config values are missing."""
+class InsufficientFundsError(FragrantAutoError):
+    """Raised when wallet balance is too low."""
 
 
-class RateLimitExceeded(FragrantAutoError):
-    """Raised when API rate limits are hit."""
-
-
-def handle_exception(e: Exception) -> None:
-    """Centralized exception re-raising wrapper."""
-    if not isinstance(e, FragrantAutoError):
-        raise FragrantAutoError(f"Unexpected error: {str(e)}") from e
-    raise e
+def handle_crypto_error(err: Exception) -> None:
+    if isinstance(err, (ConnectionTimeoutError, RateLimitError)):
+        # Trigger exponential backoff logic
+        pass
+    elif isinstance(err, ValidationError):
+        # Log malformed signature or key
+        pass
+    elif isinstance(err, InsufficientFundsError):
+        # Abort transaction flow
+        pass
+    else:
+        raise err
