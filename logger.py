@@ -1,31 +1,54 @@
 import logging
-from logging.handlers import RotatingFileHandler
+import sys
 from pathlib import Path
+from typing import Optional, Union
 
-def get_logger(name: str, log_file: str = "app.log") -> logging.Logger:
+
+class CryptoFormatter(logging.Formatter):
+    """Custom log formatter for formatting cryptocurrency transaction events."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        symbol = getattr(record, "symbol", "N/A")
+        record.msg = f"[{symbol}] {record.msg}"
+        return super().format(record)
+
+
+def setup_logger(
+    name: str = "fragrantauto",
+    log_file: Optional[Union[str, Path]] = None,
+    level: int = logging.INFO,
+) -> logging.Logger:
+    """Configures and returns a structured logger for crypto operations.
+
+    Args:
+        name: The name of the logger instance.
+        log_file: Optional file path to store output logs.
+        level: Logging severity level.
+
+    Returns:
+        Configured Logger instance ready for operational logging.
+    """
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
+    logger.propagate = False
 
-    if not logger.handlers:
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
+    if logger.handlers:
+        return logger
 
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+    formatter = CryptoFormatter(
+        fmt="%(asctime)s | %(levelname)-8s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
-        file_handler = RotatingFileHandler(
-            log_path,
-            maxBytes=5 * 1024 * 1024,
-            backupCount=3,
-            encoding="utf-8"
-        )
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    if log_file:
+        file_path = Path(log_file)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(file_path, encoding="utf-8")
         file_handler.setFormatter(formatter)
-
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-
         logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
 
     return logger
