@@ -1,51 +1,25 @@
-import asyncio
-import functools
-import logging
-import random
+import hashlib
+import hmac
 import time
-from typing import Any, Callable, Type, Union
+from typing import Dict, Any
+from decimal import Decimal
 
-logger = logging.getLogger("fragrantauto.utils")
+def generate_signature(api_secret: str, payload: str) -> str:
+    return hmac.new(
+        api_secret.encode('utf-8'),
+        payload.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
 
+def get_timestamp() -> int:
+    return int(time.time() * 1000)
 
-def retry_network_op(
-    max_retries: int = 3,
-    initial_delay: float = 1.0,
-    backoff_factor: float = 2.0,
-    exceptions: Union[Type[Exception], tuple[Type[Exception], ...]] = Exception,
-) -> Callable:
-    def decorator(func: Callable) -> Callable:
-        if asyncio.iscoroutinefunction(func):
+def format_amount(amount: float, precision: int = 8) -> Decimal:
+    return Decimal(str(amount)).quantize(Decimal(f"1.{'0' * precision}"))
 
-            @functools.wraps(func)
-            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                delay = initial_delay
-                for attempt in range(1, max_retries + 1):
-                    try:
-                        return await func(*args, **kwargs)
-                    except exceptions as err:
-                        if attempt == max_retries:
-                            raise err
-                        jitter = random.uniform(0, 0.1 * delay)
-                        await asyncio.sleep(delay + jitter)
-                        delay *= backoff_factor
+def sanitize_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in params.items() if v is not None}
 
-            return async_wrapper
-        else:
-
-            @functools.wraps(func)
-            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                delay = initial_delay
-                for attempt in range(1, max_retries + 1):
-                    try:
-                        return func(*args, **kwargs)
-                    except exceptions as err:
-                        if attempt == max_retries:
-                            raise err
-                        jitter = random.uniform(0, 0.1 * delay)
-                        time.sleep(delay + jitter)
-                        delay *= backoff_factor
-
-            return sync_wrapper
-
-    return decorator
+def validate_pair(pair: str) -> bool:
+    parts = pair.split('_')
+    return len(parts) == 2 and all(len(p) >= 2 for p in parts)
