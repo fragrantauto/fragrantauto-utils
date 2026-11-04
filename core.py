@@ -1,41 +1,44 @@
-import functools
-import logging
-import random
-import time
-from typing import Any, Callable, Tuple, Type
-
-logger = logging.getLogger("fragrantauto")
+from hashlib import blake2b
+from functools import lru_cache
+from typing import List, Tuple, Dict
 
 
-class NetworkRetryError(Exception):
-    pass
+@lru_cache(maxsize=8192)
+def _hash_pair(left: bytes, right: bytes) -> bytes:
+    return blake2b(left + right, digest_size=32).digest()
 
 
-def retry_on_network_failure(
-    max_retries: int = 4,
-    initial_delay: float = 1.0,
-    backoff_factor: float = 2.0,
-    jitter: bool = True,
-    retryable_exceptions: Tuple[Type[Exception], ...] = (Exception,),
-) -> Callable:
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            delay = initial_delay
-            for attempt in range(1, max_retries + 1):
-                try:
-                    return func(*args, **kwargs)
-                except retryable_exceptions as exc:
-                    if attempt == max_retries:
-                        logger.error("Max retries (%d) reached for %s", max_retries, func.__name__)
-                        raise NetworkRetryError(f"Operation {func.__name__} failed: {exc}") from exc
-                    sleep_time = delay + (random.uniform(0, 0.1 * delay) if jitter else 0)
-                    logger.warning(
-                        "Attempt %d/%d for %s failed (%s). Retrying in %.2fs...",
-                        attempt, max_retries, func.__name__, exc, sleep_time
-                    )
-                    time.sleep(sleep_time)
-                    delay *= backoff_factor
+class FastMerkleTree:
+    def __init__(self, leaf_hashes: List[bytes]) -> None:
+        self._leaves = leaf_hashes
 
-        return wrapper
-    return decorator
+    def compute_root(self) -> bytes:
+        if not self._leaves:
+            return b"\x00" * 32
+        nodes = self._leaves
+        while len(nodes) > 1:
+            if len(nodes) % 2 == 1:
+                nodes = list(nodes)
+                nodes.append(nodes[-1])
+            nodes = [
+                _hash_pair(nodes[i], nodes[i + 1])
+                for i in range(0, len(nodes), 2)
+            ]
+        return nodes[0]
+
+
+class FastOrderBookAggregator:
+    def __init__(self, precision: int = 2) -> None:
+        self.precision = precision
+        self.factor = 10**precision
+
+    def aggregate(self, orders: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        aggregated: Dict[int, float] = {}
+        for price, volume in orders:
+            bucket = int(price * self.factor)
+            aggregated[bucket] = aggregated.get(bucket, 0.0) + volume
+
+        return [
+            (round(bucket / self.factor, self.precision), round(vol, 8))
+            for bucket, vol in sorted(aggregated.items())
+        ]
