@@ -1,21 +1,27 @@
-from typing import Final
+from typing import Final, Dict, List
 
-# Network identifiers
-MAINNET_ID: Final[str] = "mainnet"
-TESTNET_ID: Final[str] = "testnet"
-
-# API request settings
-DEFAULT_TIMEOUT: Final[int] = 30
+EXCHANGE_TIMEOUT: Final[float] = 30.0
 MAX_RETRIES: Final[int] = 3
 
-# Crypto asset configuration
-BASE_ASSETS: Final[list[str]] = ["BTC", "ETH", "SOL"]
-SUPPORTED_EXCHANGES: Final[tuple[str, ...]] = ("binance", "coinbase", "kraken")
+SUPPORTED_ASSETS: Final[List[str]] = ["BTC", "ETH", "SOL", "USDT"]
 
-# Decimal precision standards
-PRICE_PRECISION: Final[int] = 8
-AMOUNT_PRECISION: Final[int] = 6
+RATE_LIMITS: Final[Dict[str, int]] = {
+    "public": 10,
+    "private": 5
+}
 
-# Rate limiting defaults
-RATE_LIMIT_PER_MINUTE: Final[int] = 1200
-BURST_LIMIT: Final[int] = 50
+ENDPOINT_BASE: Final[str] = "https://api.fragrantauto.io/v1"
+
+DECIMAL_PRECISION: Final[int] = 8
+
+class ChainID:
+    MAINNET: Final[int] = 1
+    TESTNET: Final[int] = 5
+
+def get_chain_label(chain_id: int) -> str:
+    """Return string representation for given chain identifier."""
+    mapping: Dict[int, str] = {
+        ChainID.MAINNET: "mainnet",
+        ChainID.TESTNET: "testnet"
+    }
+    return mapping.get(chain_id, "unknown")
