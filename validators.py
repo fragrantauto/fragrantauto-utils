@@ -1,30 +1,24 @@
-from typing import Any, Dict
+from typing import Dict, Any, Optional
 
 class ValidationError(Exception):
     pass
 
-def validate_crypto_payload(data: Any) -> Dict[str, Any]:
-    if not isinstance(data, dict):
-        raise ValidationError("payload must be a dictionary")
+def validate_crypto_payload(data: Dict[str, Any]) -> bool:
+    required_keys = {'symbol', 'amount', 'side'}
+    if not all(key in data for key in required_keys):
+        raise ValidationError('missing required keys in payload')
     
-    required = {"symbol": str, "amount": (int, float), "side": str}
-    for key, expected_type in required.items():
-        if key not in data:
-            raise ValidationError(f"missing required key: {key}")
-        if not isinstance(data[key], expected_type):
-            raise ValidationError(f"invalid type for {key}")
-    
-    if data["side"] not in ("buy", "sell"):
-        raise ValidationError("side must be buy or sell")
-    if data["amount"] <= 0:
-        raise ValidationError("amount must be positive")
-    
-    return data
+    if not isinstance(data['amount'], (int, float)) or data['amount'] <= 0:
+        raise ValidationError('invalid amount value')
+        
+    if data['side'] not in {'buy', 'sell'}:
+        raise ValidationError('invalid trade side')
+        
+    return True
 
-def process_loop(stream: list):
-    for item in stream:
-        try:
-            validated = validate_crypto_payload(item)
-            print(f"Processing: {validated}")
-        except ValidationError as e:
-            print(f"Skipping invalid input: {e}")
+def sanitize_input(data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        'symbol': str(data['symbol']).upper(),
+        'amount': float(data['amount']),
+        'side': str(data['side']).lower()
+    }
