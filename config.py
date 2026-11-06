@@ -2,37 +2,31 @@ import os
 import json
 from typing import Any, Dict
 
+DEFAULTS = {
+    "RPC_URL": "https://api.mainnet-beta.solana.com",
+    "TIMEOUT": 30,
+    "MAX_RETRIES": 3,
+    "DEBUG": False
+}
+
 class ConfigLoader:
-    def __init__(self, defaults: Dict[str, Any] = None):
-        self.config = defaults or {}
+    def __init__(self, path: str = "config.json"):
+        self.path = path
+        self._config = self._load()
 
-    def load_from_env(self, prefix: str = 'FA_') -> None:
-        for key, value in os.environ.items():
-            if key.startswith(prefix):
-                config_key = key[len(prefix):].lower()
-                self.config[config_key] = self._parse_value(value)
+    def _load(self) -> Dict[str, Any]:
+        config = DEFAULTS.copy()
+        if os.path.exists(self.path):
+            with open(self.path, "r") as f:
+                try:
+                    user_config = json.load(f)
+                    config.update(user_config)
+                except json.JSONDecodeError:
+                    pass
+        return config
 
-    def load_from_json(self, filepath: str) -> None:
-        if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
-                self.config.update(json.load(f))
+    def get(self, key: str) -> Any:
+        return self._config.get(key)
 
-    def _parse_value(self, value: str) -> Any:
-        if value.lower() in ('true', 'false'):
-            return value.lower() == 'true'
-        try:
-            if '.' in value:
-                return float(value)
-            return int(value)
-        except ValueError:
-            return value
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return self.config.get(key, default)
-
-def get_config() -> ConfigLoader:
-    defaults = {'rpc_url': 'http://localhost:8545', 'timeout': 30}
-    loader = ConfigLoader(defaults)
-    loader.load_from_json('config.json')
-    loader.load_from_env()
-    return loader
+    def __getitem__(self, key: str) -> Any:
+        return self._config[key]
