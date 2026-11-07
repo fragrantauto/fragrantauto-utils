@@ -1,44 +1,32 @@
-from hashlib import blake2b
-from functools import lru_cache
-from typing import List, Tuple, Dict
+import functools
+from typing import Callable, Any, Dict
 
+class ExecutionEngine:
+    def __init__(self):
+        self._cache: Dict[tuple, Any] = {}
 
-@lru_cache(maxsize=8192)
-def _hash_pair(left: bytes, right: bytes) -> bytes:
-    return blake2b(left + right, digest_size=32).digest()
+    @staticmethod
+    def memoize_state(func: Callable) -> Callable:
+        cache = {}
 
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            key = (args, tuple(sorted(kwargs.items())))
+            if key not in cache:
+                cache[key] = func(*args, **kwargs)
+            return cache[key]
+        return wrapper
 
-class FastMerkleTree:
-    def __init__(self, leaf_hashes: List[bytes]) -> None:
-        self._leaves = leaf_hashes
+    @staticmethod
+    def batch_process(data: list, size: int = 100):
+        for i in range(0, len(data), size):
+            yield data[i:i + size]
 
-    def compute_root(self) -> bytes:
-        if not self._leaves:
-            return b"\x00" * 32
-        nodes = self._leaves
-        while len(nodes) > 1:
-            if len(nodes) % 2 == 1:
-                nodes = list(nodes)
-                nodes.append(nodes[-1])
-            nodes = [
-                _hash_pair(nodes[i], nodes[i + 1])
-                for i in range(0, len(nodes), 2)
-            ]
-        return nodes[0]
+    def compute_hash_sequence(self, transactions: list) -> list:
+        return [hash(tx) for tx in transactions]
 
-
-class FastOrderBookAggregator:
-    def __init__(self, precision: int = 2) -> None:
-        self.precision = precision
-        self.factor = 10**precision
-
-    def aggregate(self, orders: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
-        aggregated: Dict[int, float] = {}
-        for price, volume in orders:
-            bucket = int(price * self.factor)
-            aggregated[bucket] = aggregated.get(bucket, 0.0) + volume
-
-        return [
-            (round(bucket / self.factor, self.precision), round(vol, 8))
-            for bucket, vol in sorted(aggregated.items())
-        ]
+def optimize_compute(func):
+    @functools.lru_cache(maxsize=128)
+    def cached_func(*args, **kwargs):
+        return func(*args, **kwargs)
+    return cached_func
