@@ -1,32 +1,49 @@
-import functools
-from typing import Callable, Any, Dict
+import re
+from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, List
 
-class ExecutionEngine:
-    def __init__(self):
-        self._cache: Dict[tuple, Any] = {}
+ETH_ADDRESS_REGEX = re.compile(r"^0x[a-fA-F0-9]{40}$")
+SUPPORTED_SYMBOLS = {"BTC", "ETH", "USDT", "SOL"}
 
-    @staticmethod
-    def memoize_state(func: Callable) -> Callable:
-        cache = {}
 
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            key = (args, tuple(sorted(kwargs.items())))
-            if key not in cache:
-                cache[key] = func(*args, **kwargs)
-            return cache[key]
-        return wrapper
+class TransactionValidationError(Exception):
+    pass
 
-    @staticmethod
-    def batch_process(data: list, size: int = 100):
-        for i in range(0, len(data), size):
-            yield data[i:i + size]
 
-    def compute_hash_sequence(self, transactions: list) -> list:
-        return [hash(tx) for tx in transactions]
+def validate_payload(raw_tx: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(raw_tx, dict):
+        raise TransactionValidationError("Payload must be a dictionary")
 
-def optimize_compute(func):
-    @functools.lru_cache(maxsize=128)
-    def cached_func(*args, **kwargs):
-        return func(*args, **kwargs)
-    return cached_func
+    address = raw_tx.get("recipient")
+    if not isinstance(address, str) or not ETH_ADDRESS_REGEX.match(address):
+        raise TransactionValidationError(f"Invalid address format: {address}")
+
+    symbol = raw_tx.get("symbol")
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise TransactionValidationError(f"Unsupported token symbol: {symbol}")
+
+    try:
+        amount = Decimal(str(raw_tx.get("amount", 0)))
+        if amount <= Decimal("0"):
+            raise TransactionValidationError("Amount must be strictly positive")
+    except (InvalidOperation, TypeError):
+        raise TransactionValidationError("Malformed numeric amount field")
+
+    return {
+        "recipient": address,
+        "symbol": symbol,
+        "amount": amount,
+        "nonce": int(raw_tx.get("nonce", 0)),
+    }
+
+
+def run_processing_loop(queue: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    results = []
+    for item in queue:
+        try:
+            tx = validate_payload(item)
+            tx["status"] = "QUEUED"
+            results.append(tx)
+        except TransactionValidationError:
+            continue
+    return results
