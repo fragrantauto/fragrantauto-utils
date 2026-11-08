@@ -1,49 +1,28 @@
 import logging
 import sys
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
+from functools import lru_cache
 
-DEFAULT_LOG_DIR = Path("logs")
-LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
-DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-
-def setup_logger(
-    name: str = "fragrantauto",
-    log_dir: Path | str = DEFAULT_LOG_DIR,
-    level: int = logging.INFO,
-    max_bytes: int = 10_485_760,
-    backup_count: int = 5,
-) -> logging.Logger:
+@lru_cache(maxsize=8)
+def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(level)
-
-    if logger.handlers:
-        return logger
-
-    formatter = logging.Formatter(fmt=LOG_FORMAT, datefmt=DATE_FORMAT)
-
-    log_path = Path(log_dir)
-    log_path.mkdir(parents=True, exist_ok=True)
-
-    file_handler = RotatingFileHandler(
-        filename=log_path / f"{name}.log",
-        maxBytes=max_bytes,
-        backupCount=backup_count,
-        encoding="utf-8",
-    )
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(level)
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(level)
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
     return logger
 
+class PerformanceLogger:
+    def __init__(self, name: str):
+        self.logger = get_logger(name)
 
-def get_crypto_logger(module_name: str) -> logging.Logger:
-    return setup_logger(f"fragrantauto.{module_name}")
+    def log_execution_time(self, func):
+        import time
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            result = func(*args, **kwargs)
+            duration = time.perf_counter() - start
+            self.logger.info(f'{func.__name__} took {duration:.6f}s')
+            return result
+        return wrapper
