@@ -1,28 +1,33 @@
 import logging
 import sys
-from functools import lru_cache
+from typing import Optional
 
-@lru_cache(maxsize=8)
-def get_logger(name: str) -> logging.Logger:
-    logger = logging.getLogger(name)
+def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
+    """Initialize and return a configured logger instance."""
+    logger: logging.Logger = logging.getLogger(name)
+    logger.setLevel(level)
+    
+    formatter: logging.Formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    
+    console_handler: logging.StreamHandler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    
     if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+        logger.addHandler(console_handler)
+        
     return logger
 
-class PerformanceLogger:
-    def __init__(self, name: str):
-        self.logger = get_logger(name)
+class CryptoLogger:
+    """Wrapper for consistent crypto utility logging."""
+    def __init__(self, name: str, level: Optional[int] = None) -> None:
+        self.logger: logging.Logger = get_logger(name, level or logging.INFO)
 
-    def log_execution_time(self, func):
-        import time
-        def wrapper(*args, **kwargs):
-            start = time.perf_counter()
-            result = func(*args, **kwargs)
-            duration = time.perf_counter() - start
-            self.logger.info(f'{func.__name__} took {duration:.6f}s')
-            return result
-        return wrapper
+    def info(self, msg: str) -> None:
+        """Log informational messages."""
+        self.logger.info(msg)
+
+    def error(self, msg: str) -> None:
+        """Log error messages."""
+        self.logger.error(msg)
