@@ -1,49 +1,37 @@
-import re
-from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List
-
-ETH_ADDRESS_REGEX = re.compile(r"^0x[a-fA-F0-9]{40}$")
-SUPPORTED_SYMBOLS = {"BTC", "ETH", "USDT", "SOL"}
+import hashlib
+from functools import lru_cache
+from typing import List, Sequence
 
 
-class TransactionValidationError(Exception):
-    pass
+class CryptoBatchProcessor:
+    __slots__ = ("_algorithm",)
 
+    def __init__(self, algorithm: str = "sha256") -> None:
+        self._algorithm = algorithm
 
-def validate_payload(raw_tx: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(raw_tx, dict):
-        raise TransactionValidationError("Payload must be a dictionary")
+    @lru_cache(maxsize=1024)
+    def hash_payload(self, data: bytes) -> bytes:
+        hasher = hashlib.new(self._algorithm)
+        hasher.update(data)
+        return hasher.digest()
 
-    address = raw_tx.get("recipient")
-    if not isinstance(address, str) or not ETH_ADDRESS_REGEX.match(address):
-        raise TransactionValidationError(f"Invalid address format: {address}")
+    def compute_merkle_root(self, leaf_hashes: Sequence[bytes]) -> bytes:
+        if not leaf_hashes:
+            return b""
 
-    symbol = raw_tx.get("symbol")
-    if symbol not in SUPPORTED_SYMBOLS:
-        raise TransactionValidationError(f"Unsupported token symbol: {symbol}")
+        current_level = list(leaf_hashes)
+        while len(current_level) > 1:
+            if len(current_level) % 2 != 0:
+                current_level.append(current_level[-1])
 
-    try:
-        amount = Decimal(str(raw_tx.get("amount", 0)))
-        if amount <= Decimal("0"):
-            raise TransactionValidationError("Amount must be strictly positive")
-    except (InvalidOperation, TypeError):
-        raise TransactionValidationError("Malformed numeric amount field")
+            next_level = []
+            for i in range(0, len(current_level), 2):
+                combined = current_level[i] + current_level[i + 1]
+                next_level.append(self.hash_payload(combined))
+            current_level = next_level
 
-    return {
-        "recipient": address,
-        "symbol": symbol,
-        "amount": amount,
-        "nonce": int(raw_tx.get("nonce", 0)),
-    }
+        return current_level[0]
 
-
-def run_processing_loop(queue: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    results = []
-    for item in queue:
-        try:
-            tx = validate_payload(item)
-            tx["status"] = "QUEUED"
-            results.append(tx)
-        except TransactionValidationError:
-            continue
-    return results
+    def fast_batch_digest(self, payload_list: List[bytes]) -> List[bytes]:
+        cache_get = self.hash_payload
+        return [cache_get(item) for item in payload_list]
