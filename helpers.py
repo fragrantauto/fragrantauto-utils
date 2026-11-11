@@ -1,27 +1,53 @@
+from decimal import Decimal, InvalidOperation
 import re
-from typing import Tuple, Union
 
 
-def wei_to_ether(wei: int) -> float:
-    return wei / 10**18
+class CryptoValueError(ValueError):
+    pass
 
 
-def ether_to_wei(ether: Union[float, int, str]) -> int:
-    return int(float(ether) * 10**18)
+class InvalidAddressError(CryptoValueError):
+    pass
 
 
-def calculate_slippage(price: float, percentage: float) -> Tuple[float, float]:
-    delta = price * (percentage / 100.0)
-    return max(0.0, price - delta), price + delta
+class InvalidAmountError(CryptoValueError):
+    pass
 
 
-def truncate_address(address: str, leading: int = 6, trailing: int = 4) -> str:
-    if not address or len(address) <= leading + trailing:
-        return address
-    return f"{address[:leading]}...{address[-trailing:]}"
-
-
-def is_valid_eth_address(address: str) -> bool:
+def validate_checksum_address(address: str) -> str:
     if not isinstance(address, str):
-        return False
-    return bool(re.match(r"^0x[a-fA-F0-9]{40}$", address))
+        raise InvalidAddressError("Address must be a string")
+    address = address.strip()
+    if not re.match(r"^0x[a-fA-F0-9]{40}$", address):
+        raise InvalidAddressError(f"Invalid address format: {address}")
+    return address
+
+
+def to_wei(amount: float | str | Decimal, decimals: int = 18) -> int:
+    if not isinstance(decimals, int) or decimals < 0 or decimals > 36:
+        raise ValueError("Decimals must be an integer between 0 and 36")
+    try:
+        dec_amount = Decimal(str(amount))
+    except (InvalidOperation, TypeError):
+        raise InvalidAmountError(f"Cannot parse amount: {amount}")
+
+    if dec_amount < 0:
+        raise InvalidAmountError("Amount cannot be negative")
+
+    wei_val = dec_amount * (Decimal(10) ** decimals)
+    if wei_val != wei_val.to_integral_value():
+        raise InvalidAmountError("Amount precision exceeds specified decimals")
+
+    return int(wei_val)
+
+
+def from_wei(wei_amount: int, decimals: int = 18) -> Decimal:
+    if not isinstance(wei_amount, int):
+        raise InvalidAmountError("Wei amount must be an integer")
+    if wei_amount < 0:
+        raise InvalidAmountError("Wei amount cannot be negative")
+    if not isinstance(decimals, int) or decimals < 0 or decimals > 36:
+        raise ValueError("Decimals must be an integer between 0 and 36")
+
+    factor = Decimal(10) ** decimals
+    return Decimal(wei_amount) / factor
