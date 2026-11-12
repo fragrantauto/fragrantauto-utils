@@ -1,28 +1,27 @@
-import time
-import functools
-import logging
-from typing import Callable, Any
+import json
+from decimal import Decimal
+from typing import Dict, Any, Optional
 
-logger = logging.getLogger(__name__)
+def normalize_crypto_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "symbol": str(data.get("s", "")).upper(),
+        "price": Decimal(str(data.get("p", "0"))),
+        "quantity": Decimal(str(data.get("q", "0"))),
+        "timestamp": int(data.get("t", 0)),
+    }
 
-def retry(retries: int = 3, delay: float = 1.0, backoff: float = 2.0):
-    def decorator(func: Callable):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            local_delay = delay
-            for attempt in range(retries):
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    if attempt == retries - 1:
-                        logger.error(f"Final attempt failed: {e}")
-                        raise
-                    logger.warning(f"Attempt {attempt + 1} failed, retrying in {local_delay}s")
-                    time.sleep(local_delay)
-                    local_delay *= backoff
-        return wrapper
-    return decorator
+def validate_order_payload(payload: str) -> Optional[Dict[str, Any]]:
+    try:
+        parsed = json.loads(payload)
+        required = {"s", "p", "q", "t"}
+        if not all(k in parsed for k in required):
+            return None
+        return normalize_crypto_data(parsed)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
 
-@retry(retries=3, delay=0.5)
-def execute_network_request(task: Callable, *args, **kwargs):
-    return task(*args, **kwargs)
+def calculate_position_value(price: Decimal, quantity: Decimal) -> Decimal:
+    return price * quantity
+
+def format_trade_log(data: Dict[str, Any]) -> str:
+    return f"[{data['timestamp']}] {data['symbol']}: {data['quantity']} @ {data['price']}"
