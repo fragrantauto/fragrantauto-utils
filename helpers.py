@@ -1,53 +1,35 @@
-from decimal import Decimal, InvalidOperation
-import re
+import hashlib
+from typing import Union
 
 
-class CryptoValueError(ValueError):
-    pass
+def satoshi_to_btc(satoshis: int) -> float:
+    if satoshis < 0:
+        raise ValueError("Satoshis cannot be negative")
+    return satoshis / 100_000_000
 
 
-class InvalidAddressError(CryptoValueError):
-    pass
+def btc_to_satoshi(btc: Union[int, float]) -> int:
+    if btc < 0:
+        raise ValueError("BTC cannot be negative")
+    return int(round(btc * 100_000_000))
 
 
-class InvalidAmountError(CryptoValueError):
-    pass
+def sha256d(data: bytes) -> bytes:
+    return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
 
-def validate_checksum_address(address: str) -> str:
-    if not isinstance(address, str):
-        raise InvalidAddressError("Address must be a string")
-    address = address.strip()
-    if not re.match(r"^0x[a-fA-F0-9]{40}$", address):
-        raise InvalidAddressError(f"Invalid address format: {address}")
-    return address
+def normalize_hex(hex_str: str) -> str:
+    cleaned = hex_str.strip().lower()
+    if cleaned.startswith("0x"):
+        cleaned = cleaned[2:]
+    if len(cleaned) % 2 != 0:
+        cleaned = "0" + cleaned
+    return cleaned
 
 
-def to_wei(amount: float | str | Decimal, decimals: int = 18) -> int:
-    if not isinstance(decimals, int) or decimals < 0 or decimals > 36:
-        raise ValueError("Decimals must be an integer between 0 and 36")
+def is_valid_hex(hex_str: str) -> bool:
     try:
-        dec_amount = Decimal(str(amount))
-    except (InvalidOperation, TypeError):
-        raise InvalidAmountError(f"Cannot parse amount: {amount}")
-
-    if dec_amount < 0:
-        raise InvalidAmountError("Amount cannot be negative")
-
-    wei_val = dec_amount * (Decimal(10) ** decimals)
-    if wei_val != wei_val.to_integral_value():
-        raise InvalidAmountError("Amount precision exceeds specified decimals")
-
-    return int(wei_val)
-
-
-def from_wei(wei_amount: int, decimals: int = 18) -> Decimal:
-    if not isinstance(wei_amount, int):
-        raise InvalidAmountError("Wei amount must be an integer")
-    if wei_amount < 0:
-        raise InvalidAmountError("Wei amount cannot be negative")
-    if not isinstance(decimals, int) or decimals < 0 or decimals > 36:
-        raise ValueError("Decimals must be an integer between 0 and 36")
-
-    factor = Decimal(10) ** decimals
-    return Decimal(wei_amount) / factor
+        bytes.fromhex(normalize_hex(hex_str))
+        return True
+    except ValueError:
+        return False
