@@ -1,29 +1,26 @@
-import hashlib
-import hmac
 import time
-from typing import Dict, Any
-from urllib.parse import urlencode
+import functools
+import logging
+from typing import Callable, Any, Type, Tuple
 
-def generate_signature(api_secret: str, query_string: str) -> str:
-    return hmac.new(
-        api_secret.encode('utf-8'),
-        query_string.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
+logger = logging.getLogger(__name__)
 
-def format_params(params: Dict[str, Any]) -> str:
-    params['timestamp'] = int(time.time() * 1000)
-    return urlencode(sorted(params.items()))
-
-def validate_order_params(params: Dict[str, Any]) -> bool:
-    required = {'symbol', 'side', 'type', 'quantity'}
-    return all(key in params for key in required)
-
-def sanitize_float(value: Any, precision: int = 8) -> float:
-    return round(float(value), precision)
-
-def get_headers(api_key: str) -> Dict[str, str]:
-    return {
-        'X-MBX-APIKEY': api_key,
-        'Content-Type': 'application/json'
-    }
+def retry(exceptions: Tuple[Type[Exception], ...] = (Exception,), 
+          tries: int = 3, 
+          delay: float = 1.0, 
+          backoff: float = 2.0) -> Callable:
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            mtries, mdelay = tries, delay
+            while mtries > 1:
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    logger.warning(f"{func.__name__} failed: {e}. Retrying in {mdelay}s...")
+                    time.sleep(mdelay)
+                    mtries -= 1
+                    mdelay *= backoff
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
