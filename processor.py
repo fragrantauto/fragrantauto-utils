@@ -1,42 +1,21 @@
-from decimal import Decimal
-from typing import Dict, List, Optional, Tuple, Any
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Union, List
 
+def format_crypto_amount(amount: Union[str, float, Decimal], precision: int = 8) -> Decimal:
+    return Decimal(str(amount)).quantize(Decimal(10) ** -precision, rounding=ROUND_HALF_UP)
 
-class CryptoOrderProcessor:
-    """Process and normalize cryptocurrency trade data across exchanges."""
+def calculate_position_size(balance: Decimal, risk_pct: Decimal, entry: Decimal, stop: Decimal) -> Decimal:
+    if entry <= stop:
+        raise ValueError("Entry price must be greater than stop loss for long positions")
+    risk_amount = balance * risk_pct
+    price_diff = entry - stop
+    return (risk_amount / price_diff).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
 
-    def __init__(self, base_currency: str = "USDT") -> None:
-        self.base_currency: str = base_currency.upper()
+def validate_ticker(ticker: str) -> bool:
+    return bool(ticker and ticker.replace('/', '').isalnum())
 
-    def calculate_fee(self, amount: Decimal, fee_rate: Decimal) -> Decimal:
-        """Calculate trading fee for a given transaction amount."""
-        return (amount * fee_rate).quantize(Decimal("0.00000001"))
+def sanitize_order_book(data: List[dict]) -> List[dict]:
+    return [item for item in data if item.get('price') > 0 and item.get('amount') > 0]
 
-    def normalize_order_book(
-        self, raw_bids: List[List[Any]], raw_asks: List[List[Any]]
-    ) -> Dict[str, List[Tuple[Decimal, Decimal]]]:
-        """Parse and convert raw exchange order book entries to structured Decimals."""
-        bids = [(Decimal(str(p)), Decimal(str(q))) for p, q in raw_bids]
-        asks = [(Decimal(str(p)), Decimal(str(q))) for p, q in raw_asks]
-        bids.sort(key=lambda x: x[0], reverse=True)
-        asks.sort(key=lambda x: x[0])
-        return {"bids": bids, "asks": asks}
-
-    def compute_vwap(self, trades: List[Dict[str, Decimal]]) -> Optional[Decimal]:
-        """Compute Volume Weighted Average Price from trade executions."""
-        if not trades:
-            return None
-
-        total_volume = Decimal("0")
-        total_value = Decimal("0")
-
-        for trade in trades:
-            price = trade.get("price", Decimal("0"))
-            volume = trade.get("volume", Decimal("0"))
-            total_value += price * volume
-            total_volume += volume
-
-        if total_volume == Decimal("0"):
-            return None
-
-        return (total_value / total_volume).quantize(Decimal("0.00000001"))
+def calculate_slippage(expected: Decimal, actual: Decimal) -> Decimal:
+    return abs((actual - expected) / expected) * 100
