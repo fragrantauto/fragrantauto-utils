@@ -1,35 +1,42 @@
-import hashlib
-from decimal import Decimal, ROUND_DOWN
-from typing import Union
+import functools
+from typing import Callable, Any, Dict
 
+class CacheManager:
+    def __init__(self, ttl_seconds: int = 60):
+        self.ttl = ttl_seconds
+        self._cache: Dict[tuple, tuple] = {}
 
-def to_base_unit(amount: Union[int, float, str], decimals: int = 18) -> int:
-    d_amount = Decimal(str(amount))
-    multiplier = Decimal(10 ** decimals)
-    return int(d_amount * multiplier)
+    def memoize_with_ttl(self, func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            import time
+            key = (func.__name__, args, frozenset(kwargs.items()))
+            now = time.time()
+            if key in self._cache:
+                result, timestamp = self._cache[key]
+                if now - timestamp < self.ttl:
+                    return result
+            result = func(*args, **kwargs)
+            self._cache[key] = (result, now)
+            return result
+        return wrapper
 
+    def clear(self) -> None:
+        self._cache.clear()
 
-def from_base_unit(amount: int, decimals: int = 18) -> Decimal:
-    d_amount = Decimal(str(amount))
-    divider = Decimal(10 ** decimals)
-    return d_amount / divider
+class TradeProcessor:
+    def __init__(self, cache: CacheManager):
+        self.cache = cache
 
+    @staticmethod
+    def compute_order_book_spread(asks: list, bids: list) -> float:
+        if not asks or not bids:
+            return 0.0
+        return float(min(asks) - max(bids))
 
-def calculate_slippage_bounds(
-    price: Union[float, Decimal],
-    slippage_percent: float
-) -> tuple[Decimal, Decimal]:
-    d_price = Decimal(str(price))
-    d_slippage = Decimal(str(slippage_percent)) / Decimal("100")
-    min_price = d_price * (Decimal("1") - d_slippage)
-    max_price = d_price * (Decimal("1") + d_slippage)
-    return min_price, max_price
+    def get_market_delta(self, market_id: str, asks: list, bids: list) -> float:
+        cached_func = self.cache.memoize_with_ttl(self.compute_order_book_spread)
+        return cached_func(asks, bids)
 
-
-def truncate_amount(amount: Decimal, max_decimals: int = 4) -> Decimal:
-    fmt = "0." + "0" * max_decimals if max_decimals > 0 else "0"
-    return amount.quantize(Decimal(fmt), rounding=ROUND_DOWN)
-
-
-def generate_tx_hash(payload: bytes) -> str:
-    return f"0x{hashlib.sha256(payload).hexdigest()}"
+cache_instance = CacheManager(ttl_seconds=30)
+processor = TradeProcessor(cache_instance)
