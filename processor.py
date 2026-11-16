@@ -1,23 +1,30 @@
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Union, List
+from typing import List, Dict, Optional
+import logging
 
-def format_amount(amount: Union[str, float, Decimal], precision: int = 8) -> Decimal:
-    return Decimal(str(amount)).quantize(Decimal('1e-{}'.format(precision)), rounding=ROUND_HALF_UP)
+class DataProcessor:
+    def __init__(self, target_chain: str = 'ethereum'):
+        self.chain = target_chain
+        self.logger = logging.getLogger(__name__)
 
-def calculate_fee(amount: Union[str, float, Decimal], rate: float) -> Decimal:
-    val = Decimal(str(amount)) * Decimal(str(rate))
-    return val.quantize(Decimal('0.00000001'), rounding=ROUND_HALF_UP)
+    def sanitize_payload(self, data: Dict) -> Dict:
+        return {k: v for k, v in data.items() if v is not None}
 
-def validate_order_size(amount: float, min_size: float) -> bool:
-    return amount >= min_size
+    def process_transaction(self, tx: Dict) -> Optional[Dict]:
+        try:
+            if not tx.get('hash') or not tx.get('value'):
+                return None
+            return {
+                'tx_hash': tx['hash'],
+                'amount': float(tx['value']),
+                'chain': self.chain
+            }
+        except (ValueError, KeyError) as e:
+            self.logger.error(f'invalid transaction data: {e}')
+            return None
 
-def calculate_position_size(balance: float, risk_per_trade: float, stop_loss_pct: float) -> Decimal:
-    risk_amount = Decimal(str(balance)) * Decimal(str(risk_per_trade))
-    position_size = risk_amount / Decimal(str(stop_loss_pct))
-    return position_size.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+    def batch_process(self, transactions: List[Dict]) -> List[Dict]:
+        return [p for tx in transactions if (p := self.process_transaction(tx))]
 
-def sanitize_symbol(symbol: str) -> str:
-    return symbol.strip().upper().replace('/', '').replace('_', '')
-
-def chunk_list(items: List, size: int) -> List[List]:
-    return [items[i:i + size] for i in range(0, len(items), size)]
+def run_pipeline(data: List[Dict]) -> List[Dict]:
+    processor = DataProcessor()
+    return processor.batch_process(data)
