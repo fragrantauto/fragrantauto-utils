@@ -1,30 +1,24 @@
-from typing import List, Dict, Optional
-import logging
+from decimal import Decimal, ROUND_HALF_DOWN
+from typing import Union, List
 
-class DataProcessor:
-    def __init__(self, target_chain: str = 'ethereum'):
-        self.chain = target_chain
-        self.logger = logging.getLogger(__name__)
+def format_crypto_amount(amount: Union[str, float, Decimal], decimals: int = 8) -> Decimal:
+    return Decimal(str(amount)).quantize(Decimal(10)**-decimals, rounding=ROUND_HALF_DOWN)
 
-    def sanitize_payload(self, data: Dict) -> Dict:
-        return {k: v for k, v in data.items() if v is not None}
+def calculate_position_size(balance: Decimal, risk_percent: float, entry_price: Decimal, stop_loss: Decimal) -> Decimal:
+    risk_amount = balance * Decimal(str(risk_percent))
+    risk_per_unit = abs(entry_price - stop_loss)
+    if risk_per_unit == 0:
+        return Decimal('0')
+    return risk_amount / risk_per_unit
 
-    def process_transaction(self, tx: Dict) -> Optional[Dict]:
-        try:
-            if not tx.get('hash') or not tx.get('value'):
-                return None
-            return {
-                'tx_hash': tx['hash'],
-                'amount': float(tx['value']),
-                'chain': self.chain
-            }
-        except (ValueError, KeyError) as e:
-            self.logger.error(f'invalid transaction data: {e}')
-            return None
+def sanitize_order_params(params: dict) -> dict:
+    return {k: v for k, v in params.items() if v is not None}
 
-    def batch_process(self, transactions: List[Dict]) -> List[Dict]:
-        return [p for tx in transactions if (p := self.process_transaction(tx))]
+def aggregate_order_books(bids: List[List[str]], asks: List[List[str]]) -> dict:
+    return {
+        'bids': sorted([[Decimal(p), Decimal(a)] for p, a in bids], reverse=True),
+        'asks': sorted([[Decimal(p), Decimal(a)] for p, a in asks])
+    }
 
-def run_pipeline(data: List[Dict]) -> List[Dict]:
-    processor = DataProcessor()
-    return processor.batch_process(data)
+def validate_ticker(ticker: str) -> bool:
+    return bool(ticker and ticker.replace('/', '').isalnum())
