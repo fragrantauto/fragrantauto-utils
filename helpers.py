@@ -1,35 +1,24 @@
-import hashlib
-from typing import Union
+import logging
+from typing import Any, Optional
 
+class CryptoOperationError(Exception):
+    pass
 
-def satoshi_to_btc(satoshis: int) -> float:
-    if satoshis < 0:
-        raise ValueError("Satoshis cannot be negative")
-    return satoshis / 100_000_000
-
-
-def btc_to_satoshi(btc: Union[int, float]) -> int:
-    if btc < 0:
-        raise ValueError("BTC cannot be negative")
-    return int(round(btc * 100_000_000))
-
-
-def sha256d(data: bytes) -> bytes:
-    return hashlib.sha256(hashlib.sha256(data).digest()).digest()
-
-
-def normalize_hex(hex_str: str) -> str:
-    cleaned = hex_str.strip().lower()
-    if cleaned.startswith("0x"):
-        cleaned = cleaned[2:]
-    if len(cleaned) % 2 != 0:
-        cleaned = "0" + cleaned
-    return cleaned
-
-
-def is_valid_hex(hex_str: str) -> bool:
+def safe_execute(func: callable, *args: Any, **kwargs: Any) -> Optional[Any]:
     try:
-        bytes.fromhex(normalize_hex(hex_str))
-        return True
-    except ValueError:
+        return func(*args, **kwargs)
+    except (ConnectionError, TimeoutError) as e:
+        logging.error(f"Network failure during execution: {e}")
+        raise CryptoOperationError("Network connectivity issue") from e
+    except ValueError as e:
+        logging.error(f"Invalid input data: {e}")
+        return None
+    except Exception as e:
+        logging.critical(f"Unexpected system failure: {e}")
+        raise
+
+def validate_transaction_payload(payload: dict) -> bool:
+    required = {"amount", "address", "asset_id"}
+    if not isinstance(payload, dict):
         return False
+    return required.issubset(payload.keys()) and payload["amount"] > 0
