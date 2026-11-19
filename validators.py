@@ -3,27 +3,26 @@ from typing import Any, Dict
 class ValidationError(Exception):
     pass
 
-def validate_crypto_payload(data: Any) -> Dict[str, Any]:
-    if not isinstance(data, dict):
-        raise ValidationError("payload must be a dictionary")
+def validate_transaction(data: Dict[str, Any]) -> None:
+    required = {'tx_hash', 'amount', 'currency'}
+    if not all(k in data for k in required):
+        raise ValidationError('missing required transaction fields')
     
-    required_keys = {"symbol", "amount", "price"}
-    if not required_keys.issubset(data.keys()):
-        raise ValidationError(f"missing keys: {required_keys - data.keys()}")
+    if not isinstance(data['amount'], (int, float)) or data['amount'] <= 0:
+        raise ValidationError('invalid transaction amount')
     
-    if not isinstance(data["amount"], (int, float)) or data["amount"] <= 0:
-        raise ValidationError("amount must be a positive number")
-        
-    if not isinstance(data["price"], (int, float)) or data["price"] <= 0:
-        raise ValidationError("price must be a positive number")
+    if not isinstance(data['tx_hash'], str) or len(data['tx_hash']) < 32:
+        raise ValidationError('invalid transaction hash format')
 
-    return data
+def validate_config(config: Dict[str, Any]) -> None:
+    if 'api_key' not in config or not config['api_key']:
+        raise ValidationError('missing or empty api key')
+    
+    if 'node_url' not in config or not config['node_url'].startswith('http'):
+        raise ValidationError('invalid node url configuration')
 
-def process_loop(data_stream: Any) -> None:
-    for entry in data_stream:
-        try:
-            validated = validate_crypto_payload(entry)
-            # logic processing here
-            print(f"processing {validated['symbol']}")
-        except ValidationError as e:
-            print(f"validation failure: {e}")
+def validate_payload(payload: Any) -> None:
+    if not isinstance(payload, dict):
+        raise ValidationError('payload must be a dictionary')
+    if not payload:
+        raise ValidationError('payload cannot be empty')
