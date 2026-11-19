@@ -1,38 +1,29 @@
-import re
-from typing import Any
+from typing import Any, Dict
 
 class ValidationError(Exception):
     pass
 
-def validate_crypto_address(address: str) -> bool:
-    if not isinstance(address, str) or not (26 <= len(address) <= 35):
-        return False
-    return bool(re.match(r'^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$', address))
-
-def validate_transaction_amount(amount: Any) -> float:
-    try:
-        val = float(amount)
-        if val <= 0:
-            raise ValidationError('Amount must be positive')
-        return val
-    except (TypeError, ValueError) as e:
-        raise ValidationError(f'Invalid amount format: {e}')
-
-def validate_input(data: dict) -> None:
-    required = ['address', 'amount', 'symbol']
-    for field in required:
-        if field not in data:
-            raise ValidationError(f'Missing field: {field}')
+def validate_crypto_payload(data: Any) -> Dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValidationError("payload must be a dictionary")
     
-    if not validate_crypto_address(data['address']):
-        raise ValidationError('Invalid wallet address format')
+    required_keys = {"symbol", "amount", "price"}
+    if not required_keys.issubset(data.keys()):
+        raise ValidationError(f"missing keys: {required_keys - data.keys()}")
     
-    data['amount'] = validate_transaction_amount(data['amount'])
+    if not isinstance(data["amount"], (int, float)) or data["amount"] <= 0:
+        raise ValidationError("amount must be a positive number")
+        
+    if not isinstance(data["price"], (int, float)) or data["price"] <= 0:
+        raise ValidationError("price must be a positive number")
 
-def process_main_loop(queue: list) -> None:
-    for entry in queue:
+    return data
+
+def process_loop(data_stream: Any) -> None:
+    for entry in data_stream:
         try:
-            validate_input(entry)
-            # execution logic here
+            validated = validate_crypto_payload(entry)
+            # logic processing here
+            print(f"processing {validated['symbol']}")
         except ValidationError as e:
-            print(f'Skipping invalid entry: {e}')
+            print(f"validation failure: {e}")
