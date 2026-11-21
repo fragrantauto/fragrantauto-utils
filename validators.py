@@ -1,30 +1,28 @@
-from typing import List, Dict, Any
-from functools import lru_cache
-import hashlib
+import re
+from typing import Optional
 
 class AddressValidator:
-    def __init__(self, checksum_enabled: bool = True):
-        self.checksum_enabled = checksum_enabled
+    ETH_PATTERN = re.compile(r'^0x[a-fA-F0-9]{40}$')
+    BTC_PATTERN = re.compile(r'^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,39}$')
 
-    @lru_cache(maxsize=1024)
-    def validate_address(self, address: str) -> bool:
-        if not isinstance(address, str) or len(address) != 42:
-            return False
-        if not address.startswith('0x'):
-            return False
-        return all(c in '0123456789abcdefABCDEF' for c in address[2:])
+    @staticmethod
+    def is_eth(address: str) -> bool:
+        return bool(AddressValidator.ETH_PATTERN.match(address))
 
-    def batch_validate(self, addresses: List[str]) -> Dict[str, bool]:
-        return {addr: self.validate_address(addr) for addr in addresses}
+    @staticmethod
+    def is_btc(address: str) -> bool:
+        return bool(AddressValidator.BTC_PATTERN.match(address))
 
-def validate_transaction_batch(tx_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [tx for tx in tx_list if tx.get('value', 0) > 0]
+class ConfigValidator:
+    @staticmethod
+    def validate_api_key(key: Optional[str]) -> bool:
+        return isinstance(key, str) and len(key) >= 32
 
-class HashCache:
-    def __init__(self):
-        self._cache = {}
+    @staticmethod
+    def validate_threshold(val: float) -> bool:
+        return isinstance(val, (int, float)) and val > 0
 
-    def get_hash(self, data: str) -> str:
-        if data not in self._cache:
-            self._cache[data] = hashlib.sha256(data.encode()).hexdigest()
-        return self._cache[data]
+def validate_transaction(address: str, amount: float) -> bool:
+    if not AddressValidator.is_eth(address) and not AddressValidator.is_btc(address):
+        return False
+    return ConfigValidator.validate_threshold(amount)
