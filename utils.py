@@ -1,26 +1,27 @@
+import hashlib
+import hmac
 import time
-import functools
-import logging
-from typing import Callable, Any, Type, Tuple
+from typing import Dict, Any, Optional
 
-logger = logging.getLogger(__name__)
+def generate_signature(api_secret: str, message: str) -> str:
+    return hmac.new(
+        api_secret.encode('utf-8'),
+        message.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
 
-def retry(exceptions: Tuple[Type[Exception], ...] = (Exception,), 
-          tries: int = 3, 
-          delay: float = 1.0, 
-          backoff: float = 2.0) -> Callable:
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            mtries, mdelay = tries, delay
-            while mtries > 1:
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    logger.warning(f"{func.__name__} failed: {e}. Retrying in {mdelay}s...")
-                    time.sleep(mdelay)
-                    mtries -= 1
-                    mdelay *= backoff
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
+def format_order_payload(symbol: str, side: str, amount: float, price: float) -> Dict[str, Any]:
+    return {
+        "symbol": symbol.upper(),
+        "side": side.lower(),
+        "quantity": str(amount),
+        "price": str(price),
+        "timestamp": int(time.time() * 1000)
+    }
+
+def validate_crypto_pair(pair: str) -> bool:
+    parts = pair.split('_')
+    return len(parts) == 2 and all(len(p) >= 3 for p in parts)
+
+def sanitize_price(price: float, precision: int = 8) -> float:
+    return round(float(price), precision)
