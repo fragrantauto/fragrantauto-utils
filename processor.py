@@ -1,28 +1,21 @@
-from typing import Dict, List, Optional, Union
-from decimal import Decimal
+import logging
+from typing import Dict, Any, List
 
-class CryptoProcessor:
-    """Handles cryptographic transaction processing and fee calculation."""
+class DataProcessor:
+    def __init__(self, logger: logging.Logger) -> None:
+        self.logger = logger
 
-    def __init__(self, fee_rate: float = 0.003) -> None:
-        self.fee_rate = Decimal(str(fee_rate))
+    def sanitize_trade_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        required_fields = ['asset', 'price', 'quantity']
+        return {k: v for k, v in data.items() if k in required_fields}
 
-    def calculate_net_amount(self, gross: Union[int, float, str]) -> Decimal:
-        """Calculates net amount after applying processor fee."""
-        value = Decimal(str(gross))
-        return value * (Decimal('1.0') - self.fee_rate)
+    def process_batch(self, batch: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        self.logger.info(f'Processing batch of {len(batch)} items')
+        return [self.sanitize_trade_data(item) for item in batch if item]
 
-    def aggregate_transactions(self, tx_list: List[Dict[str, Union[str, float]]]) -> Dict[str, Decimal]:
-        """Aggregates total volume per currency asset."""
-        totals: Dict[str, Decimal] = {}
-        for tx in tx_list:
-            asset = str(tx.get("asset", "unknown"))
-            amount = Decimal(str(tx.get("amount", 0)))
-            totals[asset] = totals.get(asset, Decimal('0')) + amount
-        return totals
+    def validate_price(self, price: float) -> bool:
+        return isinstance(price, (int, float)) and price > 0
 
-    def validate_threshold(self, amount: Decimal, limit: Optional[Decimal] = None) -> bool:
-        """Checks if amount exceeds defined safety threshold."""
-        if limit is None:
-            limit = Decimal('10000.0')
-        return amount <= limit
+def get_processor(name: str = 'fragrantauto') -> DataProcessor:
+    logger = logging.getLogger(name)
+    return DataProcessor(logger)
