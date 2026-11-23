@@ -1,28 +1,30 @@
-import re
-from typing import Optional
+import functools
+from typing import Any, Callable, Dict
+
+_CACHE: Dict[tuple, Any] = {}
 
 class AddressValidator:
-    ETH_PATTERN = re.compile(r'^0x[a-fA-F0-9]{40}$')
-    BTC_PATTERN = re.compile(r'^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,39}$')
+    @staticmethod
+    @functools.lru_cache(maxsize=1024)
+    def is_valid_address(address: str) -> bool:
+        if not isinstance(address, str) or len(address) != 42:
+            return False
+        return address.startswith('0x') and all(c in '0123456789abcdefABCDEF' for c in address[2:])
 
     @staticmethod
-    def is_eth(address: str) -> bool:
-        return bool(AddressValidator.ETH_PATTERN.match(address))
+    def validate_batch(addresses: list[str]) -> list[bool]:
+        return [AddressValidator.is_valid_address(addr) for addr in addresses]
 
-    @staticmethod
-    def is_btc(address: str) -> bool:
-        return bool(AddressValidator.BTC_PATTERN.match(address))
+def memoize_validator(func: Callable) -> Callable:
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        key = (args, tuple(sorted(kwargs.items())))
+        if key not in _CACHE:
+            _CACHE[key] = func(*args, **kwargs)
+        return _CACHE[key]
+    return wrapper
 
-class ConfigValidator:
-    @staticmethod
-    def validate_api_key(key: Optional[str]) -> bool:
-        return isinstance(key, str) and len(key) >= 32
-
-    @staticmethod
-    def validate_threshold(val: float) -> bool:
-        return isinstance(val, (int, float)) and val > 0
-
-def validate_transaction(address: str, amount: float) -> bool:
-    if not AddressValidator.is_eth(address) and not AddressValidator.is_btc(address):
-        return False
-    return ConfigValidator.validate_threshold(amount)
+@memoize_validator
+def check_checksum(address: str) -> bool:
+    address = address.lower().replace('0x', '')
+    return len(address) == 40
