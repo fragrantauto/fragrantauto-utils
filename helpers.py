@@ -1,24 +1,37 @@
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
-class CryptoOperationError(Exception):
-    pass
+logger = logging.getLogger(__name__)
 
-def safe_execute(func: callable, *args: Any, **kwargs: Any) -> Optional[Any]:
-    try:
-        return func(*args, **kwargs)
-    except (ConnectionError, TimeoutError) as e:
-        logging.error(f"Network failure during execution: {e}")
-        raise CryptoOperationError("Network connectivity issue") from e
-    except ValueError as e:
-        logging.error(f"Invalid input data: {e}")
-        return None
-    except Exception as e:
-        logging.critical(f"Unexpected system failure: {e}")
-        raise
+class CryptoHelper:
+    @staticmethod
+    def format_amount(amount: float, decimals: int = 8) -> str:
+        return f"{amount:.{decimals}f}"
 
-def validate_transaction_payload(payload: dict) -> bool:
-    required = {"amount", "address", "asset_id"}
-    if not isinstance(payload, dict):
-        return False
-    return required.issubset(payload.keys()) and payload["amount"] > 0
+    @staticmethod
+    def validate_address(address: str, chain: str) -> bool:
+        if not address:
+            return False
+        if chain == "eth":
+            return address.startswith("0x") and len(address) == 42
+        if chain == "btc":
+            return len(address) >= 26
+        return True
+
+    @classmethod
+    def safe_dict_get(cls, data: Dict[str, Any], key: str, default: Any = None) -> Any:
+        return data.get(key, default)
+
+def sanitize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in payload.items() if v is not None}
+
+def retry_operation(func, retries: int = 3):
+    def wrapper(*args, **kwargs):
+        last_ex = None
+        for _ in range(retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                last_ex = e
+        raise last_ex
+    return wrapper
