@@ -1,27 +1,22 @@
-import hashlib
-import hmac
 import time
-from typing import Dict, Any, Optional
+import functools
+import logging
+from typing import Callable, Any
 
-def generate_signature(api_secret: str, message: str) -> str:
-    return hmac.new(
-        api_secret.encode('utf-8'),
-        message.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
+logger = logging.getLogger(__name__)
 
-def format_order_payload(symbol: str, side: str, amount: float, price: float) -> Dict[str, Any]:
-    return {
-        "symbol": symbol.upper(),
-        "side": side.lower(),
-        "quantity": str(amount),
-        "price": str(price),
-        "timestamp": int(time.time() * 1000)
-    }
-
-def validate_crypto_pair(pair: str) -> bool:
-    parts = pair.split('_')
-    return len(parts) == 2 and all(len(p) >= 3 for p in parts)
-
-def sanitize_price(price: float, precision: int = 8) -> float:
-    return round(float(price), precision)
+def retry_network_operation(max_retries: int = 3, delay: float = 1.0) -> Callable:
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except (ConnectionError, TimeoutError) as e:
+                    last_exception = e
+                    logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                    time.sleep(delay * (2 ** attempt))
+            raise last_exception
+        return wrapper
+    return decorator
