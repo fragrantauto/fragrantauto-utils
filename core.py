@@ -1,19 +1,33 @@
-import time
 import functools
-from typing import Callable, Any, Type, Tuple
+from typing import Callable, Any, Dict
+import time
 
-def retry(exceptions: Tuple[Type[Exception], ...] = (Exception,), tries: int = 3, delay: float = 1.0, backoff: float = 2.0) -> Callable:
-    def decorator(func: Callable) -> Callable:
+class CacheManager:
+    def __init__(self, ttl: int = 60):
+        self.ttl = ttl
+        self.cache: Dict[str, tuple[float, Any]] = {}
+
+    def memoize(self, func: Callable) -> Callable:
         @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            mtries, mdelay = tries, delay
-            while mtries > 1:
-                try:
-                    return func(*args, **kwargs)
-                except exceptions:
-                    time.sleep(mdelay)
-                    mtries -= 1
-                    mdelay *= backoff
-            return func(*args, **kwargs)
+        def wrapper(*args, **kwargs) -> Any:
+            key = f"{func.__name__}:{args}:{frozenset(kwargs.items())}"
+            now = time.time()
+            if key in self.cache:
+                timestamp, result = self.cache[key]
+                if now - timestamp < self.ttl:
+                    return result
+            result = func(*args, **kwargs)
+            self.cache[key] = (now, result)
+            return result
         return wrapper
-    return decorator
+
+cache_instance = CacheManager()
+
+@cache_instance.memoize
+def get_market_price(symbol: str) -> float:
+    # Simulate expensive network latency for crypto pricing
+    time.sleep(0.1)
+    return 50000.0
+
+def batch_process(data: list) -> list:
+    return [get_market_price(item) for item in data]
