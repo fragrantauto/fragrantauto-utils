@@ -1,32 +1,36 @@
 class FragrantAutoError(Exception):
-    """Base exception for fragrantauto-utils."""
+    pass
 
+class ExchangeConnectionError(FragrantAutoError):
+    pass
 
-class ConnectionTimeoutError(FragrantAutoError):
-    """Raised when network requests exceed threshold."""
+class RateLimitExceeded(FragrantAutoError):
+    pass
 
-
-class RateLimitError(FragrantAutoError):
-    """Raised when API rate limits are exceeded."""
-
+class DataProcessingError(FragrantAutoError):
+    pass
 
 class ValidationError(FragrantAutoError):
-    """Raised when cryptographic inputs are invalid."""
+    pass
 
+EXCEPTION_MAP = {
+    'connection': ExchangeConnectionError,
+    'ratelimit': RateLimitExceeded,
+    'processing': DataProcessingError,
+    'validation': ValidationError
+}
 
-class InsufficientFundsError(FragrantAutoError):
-    """Raised when wallet balance is too low."""
+def get_exception(exc_type: str) -> type[FragrantAutoError]:
+    return EXCEPTION_MAP.get(exc_type, FragrantAutoError)
 
+class ExceptionHandler:
+    __slots__ = ('logger',)
 
-def handle_crypto_error(err: Exception) -> None:
-    if isinstance(err, (ConnectionTimeoutError, RateLimitError)):
-        # Trigger exponential backoff logic
-        pass
-    elif isinstance(err, ValidationError):
-        # Log malformed signature or key
-        pass
-    elif isinstance(err, InsufficientFundsError):
-        # Abort transaction flow
-        pass
-    else:
-        raise err
+    def __init__(self, logger):
+        self.logger = logger
+
+    def handle(self, e: Exception) -> None:
+        if isinstance(e, FragrantAutoError):
+            self.logger.error(f'FragrantAuto internal error: {e}')
+        else:
+            self.logger.critical(f'Unhandled system error: {e}')
