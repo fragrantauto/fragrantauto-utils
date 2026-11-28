@@ -1,33 +1,33 @@
-import functools
-from typing import Callable, Any, Dict
-import time
+import logging
+from typing import Any, Dict, Optional
 
-class CacheManager:
-    def __init__(self, ttl: int = 60):
-        self.ttl = ttl
-        self.cache: Dict[str, tuple[float, Any]] = {}
+class CryptoTransactionError(Exception):
+    pass
 
-    def memoize(self, func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            key = f"{func.__name__}:{args}:{frozenset(kwargs.items())}"
-            now = time.time()
-            if key in self.cache:
-                timestamp, result = self.cache[key]
-                if now - timestamp < self.ttl:
-                    return result
-            result = func(*args, **kwargs)
-            self.cache[key] = (now, result)
-            return result
-        return wrapper
+class TransactionProcessor:
+    def __init__(self, client: Any):
+        self.client = client
+        self.logger = logging.getLogger(__name__)
 
-cache_instance = CacheManager()
+    def execute_trade(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if not isinstance(payload, dict) or 'amount' not in payload:
+            self.logger.error("invalid payload structure")
+            return None
 
-@cache_instance.memoize
-def get_market_price(symbol: str) -> float:
-    # Simulate expensive network latency for crypto pricing
-    time.sleep(0.1)
-    return 50000.0
+        try:
+            response = self.client.post('/v1/trade', json=payload)
+            response.raise_for_status()
+            return response.json()
+        except (ConnectionError, TimeoutError) as e:
+            self.logger.warning(f"network instability: {e}")
+            raise CryptoTransactionError("network unreachable") from e
+        except Exception as e:
+            self.logger.error(f"unexpected trade failure: {e}")
+            return None
 
-def batch_process(data: list) -> list:
-    return [get_market_price(item) for item in data]
+    def validate_balance(self, ticker: str) -> bool:
+        try:
+            data = self.client.get(f'/v1/balance/{ticker}').json()
+            return float(data.get('available', 0)) > 0
+        except (ValueError, TypeError, KeyError):
+            return False
